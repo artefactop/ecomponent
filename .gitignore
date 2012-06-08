@@ -1,6 +1,11 @@
+*~
 .eunit
 deps
 priv
 *.o
 *.beam
 *.plt
+*.log
+*.html
+test/ct_run.*
+test/variables-*
