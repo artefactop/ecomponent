@@ -58,12 +58,9 @@ init(JID, Pass, Server, Port, WhiteDomain, Handler) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{handler=Handler}=State) -> %%TODO pattern matching type attribute choose handler
+handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{handler=Handler}=State) ->
+  %%TODO make throttle
   spawn(Handler, pre_process_iq, [Type, IQ, From, State]),
-  {noreply, State};
-
-handle_info({notify_channel, ID, User, Event, Time}, #state{handler=Handler}=State) ->
-  spawn(Handler, notify_channel, [ID, User, Event, Time, State]),
   {noreply, State};
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->

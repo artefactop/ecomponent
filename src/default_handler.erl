@@ -19,9 +19,24 @@ process_iq("get", IQ, _, ?NS_PING, _, #state{xmppCom=XmppCom}=State) ->
   exmpp_component:send_packet(XmppCom, Result),
   {ok, State};
 
+process_iq("error", IQ, _, Ns, State) ->
+  choose_processor(IQ, Ns),
+  {ok, State};
+
+process_iq("result", IQ, _, Ns, State) ->
+  choose_processor(IQ, Ns),
+  {ok, State};
+
 process_iq(_, IQ, _, _, _, #state{xmppCom=XmppCom}=State) ->
   lager:info("Unknown Request: ~p~n", [IQ]),
   Error = exmpp_iq:error(IQ, 'service-unavailable'),
   exmpp_component:send_packet(XmppCom, Error),
   {ok, State}.
 
+
+choose_processor(IQ, Ns) ->
+  %%TODO pattern matching namespace choose processor
+  lager:info("Choose processor for IQ:~n~p~n", [IQ]);
+
+choose_processor(_, _) ->
+  lager:info("Undefined processor").
