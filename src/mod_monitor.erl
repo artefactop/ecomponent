@@ -10,14 +10,6 @@
 
 -module(mod_monitor).
 
--define(ERROR_MSG(Format, Args),
-        error_logger:error_msg("(~p:~p:~p) " ++ Format ++ "~n",
-                               [self(), ?MODULE, ?LINE | Args])).
-
--define(INFO_MSG(Format, Args),
-        error_logger:info_msg("(~p:~p:~p) " ++ Format ++ "~n",
-                               [self(), ?MODULE, ?LINE | Args])).
-
 -export([init/0,
 	accept/3]).
 
