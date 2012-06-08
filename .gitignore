@@ -7,5 +7,7 @@ priv
 *.plt
 *.log
 *.html
+*.dump
 test/ct_run.*
 test/variables-*
+rel/*node
