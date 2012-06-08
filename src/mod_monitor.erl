@@ -48,7 +48,7 @@ accept(Id, Max, Period) ->
                 D = to_mile(timer:now_diff(now(),Timestamp)),
 		if D > Period ->
                         NC = reset_counter(D, Counter, Max, Period),
-                        ?INFO_MSG("Monitor Counter Updated: from ~p to ~p", [Counter, NC]),
+                        lager:info("Monitor Counter Updated: from ~p to ~p", [Counter, NC]),
 			accept(N, NC, Max);
                 true ->
                         accept(N, Counter, Max)
@@ -65,7 +65,7 @@ update_node(N, T, C) ->
 	NN = #monitor{id=N#monitor.id, counter=C, timestamp=T},
 	case mnesia:dirty_write(monitor,NN) of
         {'EXIT', _Reason} ->
-                ?ERROR_MSG("Found no session for ~s",[id]);
+                lager:error("Found no session for ~s",[id]);
         _ -> 
 		NN
 	end.
@@ -84,7 +84,7 @@ add_node(Node_id) ->
 	N = #monitor{id=Node_id, counter=0, timestamp = now()},
 	case mnesia:dirty_write(monitor,N) of
 	{'EXIT', _Reason} ->
-		?ERROR_MSG("Found no session for ~s",[id]);
+		lager:error("Found no session for ~s",[id]);
 	_ -> N
 	end.
 	
