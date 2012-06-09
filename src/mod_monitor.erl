@@ -10,7 +10,7 @@
 
 -module(mod_monitor).
 
--export([init/0,
+-export([init/0, init/1,
 	accept/3]).
 
 -define(WLIST_TABLE, mmwl).
