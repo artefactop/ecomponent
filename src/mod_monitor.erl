@@ -13,15 +13,48 @@
 -export([init/0,
 	accept/3]).
 
+-define(WLIST_TABLE, mmwl).
+
 -record(monitor, {id, counter, timestamp}).
 
-init() ->
+init() -> init([]).
+
+init(Whitelist) ->
+    prepare_whitelist(Whitelist),
     mnesia:create_schema([node()]),
     application:start(mnesia),
     mnesia:create_table(monitor,
                         [{attributes, record_info(fields, monitor)}]).
 
-accept(N=#monitor{}, C, Max) ->
+prepare_whitelist(L) ->
+	case ets:info(?WLIST_TABLE) of
+		undefined ->
+			ets:new(?WLIST_TABLE, [named_table, public]);
+		_ ->
+			ets:delete_all_objects(?WLIST_TABLE)
+	end,	
+	p_w(L).
+
+p_w([]) -> ok;
+p_w([H|T]) ->
+	ets:insert(?WLIST_TABLE, {H,allowed}),
+	p_w(T).
+
+is_white(K) ->
+	case ets:lookup(?WLIST_TABLE, K) of
+		[{_, allowed}] -> true;
+		_ -> false
+	end.
+
+accept(Id, Max, Period) ->
+	case is_white(Id) of
+		true ->
+			true;
+		_ ->
+			l_accept(Id, Max, Period)
+	end.
+
+l_accept(N=#monitor{}, C, Max) ->
         update_node(N, now(), C),
         if C > Max -> 
                 false;
@@ -29,7 +62,7 @@ accept(N=#monitor{}, C, Max) ->
                 true
         end;
 
-accept(Id, Max, Period) ->
+l_accept(Id, Max, Period) -> 
         N = get_node(Id),
         case N of
         {'EXIT', _Reason} ->
@@ -41,9 +74,9 @@ accept(Id, Max, Period) ->
 		if D > Period ->
                         NC = reset_counter(D, Counter, Max, Period),
                         lager:info("Monitor Counter Updated: from ~p to ~p", [Counter, NC]),
-			accept(N, NC, Max);
+			l_accept(N, NC, Max);
                 true ->
-                        accept(N, Counter, Max)
+                        l_accept(N, Counter, Max)
                 end
 	end.
 
