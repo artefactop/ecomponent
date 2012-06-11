@@ -15,8 +15,10 @@
 -include_lib("exmpp/include/exmpp_client.hrl").
 -include("../include/ecomponent.hrl").
 
+-record(matching, {id, processor}).
+
 %% API
--export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1, send_packet/2]).
+-export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1, send_packet/3, get_processor/1]).
 
 %% gen_server callbacks
 -export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -45,7 +47,11 @@ init(_) ->
 			 application:get_env(ecomponent, whitelist),
 			 application:get_env(ecomponent, max_per_period),
 			 application:get_env(ecomponent, period_seconds),
-			 application:get_env(ecomponent, handler)).
+			 application:get_env(ecomponent, handler)),
+	mnesia:create_schema([node()]),
+	application:start(mnesia),
+	mnesia:create_table(matching,
+						[{attributes, record_info(fields, matching)}]).
 
 
 init(JID, Pass, Server, Port, WhiteList, MaxPerPeriod, PeriodSeconds, Handler) ->
@@ -137,8 +143,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-send_packet(XmppCom, Packet) ->
-	exmpp_component:send_packet(XmppCom, Packet). %%TODO connection
+send_packet(XmppCom, #iq{kind=request, id=ID}=Packet, Processor) ->
+	save_id(ID, Processor),
+	exmpp_component:send_packet(XmppCom, Packet);
+
+send_packet(XmppCom, Packet, _) ->
+	exmpp_component:send_packet(XmppCom, Packet).
+
+save_id(Id, Processor) ->
+	N = #matching{id=Id, processor=Processor},
+	case mnesia:dirty_write(matching, N) of
+	{'EXIT', _Reason} ->
+		lager:error("Error writing id ~s, processor ~p on mnesia", [Id, Processor]);
+	_ -> N
+	end.
+
+get_processor(Id) ->
+	V = mnesia:dirty_read(matching, Id),
+	case V of
+	{'EXIT', _Reason} ->
+		lager:warning("Found no processor for ~s",[Id]); 
+	[] -> 
+		lager:warning("Found no processor for ~s",[Id]);
+	[N|_] -> N#matching.processor
+	end.
 
 make_connection(JID, Pass, Server, Port) -> 
 	XmppCom = exmpp_component:start(),
