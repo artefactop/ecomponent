@@ -8,6 +8,7 @@ priv
 *.log
 *.html
 *.dump
+ebin/
 test/ct_run.*
 test/variables-*
 rel/*node
