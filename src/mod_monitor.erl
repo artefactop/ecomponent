@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
-%%% File    : mod_monitor.erl
-%%% Author  : Thiago Camargo <barata7@gmail.com>
+%%% File	: mod_monitor.erl
+%%% Author	: Thiago Camargo <barata7@gmail.com>
 %%% Description : Generic Erlang/Mnesia Throttle
 %%% Provides:
-%%%             * Throttle Function based on Max Requests for an Interval for an ID(node)
+%%%			 * Throttle Function based on Max Requests for an Interval for an ID(node)
 %%%
-%%% Created : 16 Apr 2010  by Thiago Camargo <barata7@gmail.com>
+%%% Created : 16 Apr 2010	by Thiago Camargo <barata7@gmail.com>
 %%%-------------------------------------------------------------------
 
 -module(mod_monitor).
@@ -20,11 +20,11 @@
 init() -> init([]).
 
 init(Whitelist) ->
-    prepare_whitelist(Whitelist),
-    mnesia:create_schema([node()]),
-    application:start(mnesia),
-    mnesia:create_table(monitor,
-                        [{attributes, record_info(fields, monitor)}]).
+	prepare_whitelist(Whitelist),
+	mnesia:create_schema([node()]),
+	application:start(mnesia),
+	mnesia:create_table(monitor,
+						[{attributes, record_info(fields, monitor)}]).
 
 prepare_whitelist(L) ->
 	case ets:info(?WLIST_TABLE) of
@@ -55,29 +55,29 @@ accept(Id, Max, Period) ->
 	end.
 
 l_accept(N=#monitor{}, C, Max) ->
-        update_node(N, now(), C),
-        if C > Max -> 
-                false;
-        true ->
-                true
-        end;
+	update_node(N, now(), C),
+	if C > Max -> 
+			false;
+	true ->
+			true
+	end;
 
 l_accept(Id, Max, Period) -> 
-        N = get_node(Id),
-        case N of
-        {'EXIT', _Reason} ->
-                false;
-        _ ->
-                Timestamp=N#monitor.timestamp,
-        	Counter=N#monitor.counter+1,
-                D = to_mile(timer:now_diff(now(),Timestamp)),
-		if D > Period ->
-                        NC = reset_counter(D, Counter, Max, Period),
-                        lager:info("Monitor Counter Updated: from ~p to ~p", [Counter, NC]),
-			l_accept(N, NC, Max);
-                true ->
-                        l_accept(N, Counter, Max)
-                end
+	N = get_node(Id),
+	case N of
+	{'EXIT', _Reason} ->
+			false;
+	_ ->
+			Timestamp=N#monitor.timestamp,
+		Counter=N#monitor.counter+1,
+			D = to_mile(timer:now_diff(now(),Timestamp)),
+	if D > Period ->
+					NC = reset_counter(D, Counter, Max, Period),
+					lager:info("Monitor Counter Updated: from ~p to ~p", [Counter, NC]),
+		l_accept(N, NC, Max);
+			true ->
+					l_accept(N, Counter, Max)
+			end
 	end.
 
 to_mile(T) -> T/1000000.
@@ -89,9 +89,9 @@ reset_counter(Time_delta, Counter, Max, Period) ->
 update_node(N, T, C) ->
 	NN = #monitor{id=N#monitor.id, counter=C, timestamp=T},
 	case mnesia:dirty_write(monitor,NN) of
-        {'EXIT', _Reason} ->
-                lager:error("Found no session for ~s",[id]);
-        _ -> 
+		{'EXIT', _Reason} ->
+				lager:error("Found no session for ~s",[id]);
+		_ -> 
 		NN
 	end.
 
