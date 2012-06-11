@@ -153,18 +153,20 @@ send_packet(XmppCom, Packet, _) ->
 save_id(Id, Processor) ->
 	N = #matching{id=Id, processor=Processor},
 	case mnesia:dirty_write(matching, N) of
-	{'EXIT', _Reason} ->
-		lager:error("Error writing id ~s, processor ~p on mnesia", [Id, Processor]);
+	{'EXIT', Reason} ->
+		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, Processor, Reason]);
 	_ -> N
 	end.
 
 get_processor(Id) ->
 	V = mnesia:dirty_read(matching, Id),
 	case V of
-	{'EXIT', _Reason} ->
-		lager:warning("Found no processor for ~s",[Id]); 
+	{'EXIT', Reason} ->
+		lager:error("Error getting processor with id ~s on mnesia, reason: ~p",[Id, Reason]),
+		undefined; 
 	[] -> 
-		lager:warning("Found no processor for ~s",[Id]);
+		lager:warning("Found no processor for ~s",[Id]),
+		undefined;
 	[N|_] -> N#matching.processor
 	end.
 

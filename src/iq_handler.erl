@@ -4,8 +4,6 @@
 -include_lib("exmpp/include/exmpp_client.hrl").
 -include("../include/ecomponent.hrl").
 
--record(params, {from, to, ns, payload}).
-
 %% API
 -export([pre_process_iq/4]).
 
@@ -21,33 +19,39 @@ process_iq("get", IQ, #params{ns=?NS_PING}, #state{xmppCom=XmppCom}=State) ->
 	ecomponent:send_packet(XmppCom, Result, ?MODULE),
 	{ok, State};
 
-process_iq("error"=Type, IQ, #params{from=_From, ns=_Ns, payload=_Payload}=Params, State) ->
-	forward_response(Type, IQ, Params),
+process_iq("error"=Type, IQ, #params{}=Params, State) ->
+	forward_response(Type, IQ, Params, State),
 	{ok, State};
 
 process_iq("result"=Type, IQ, #params{}=Params, State) ->
-	forward_response(Type, IQ, Params),
+	forward_response(Type, IQ, Params, State),
 	{ok, State};
 
-process_iq("set"=Type, IQ, #params{}=Params, #state{xmppCom=XmppCom}=State) ->
-	forward_ns(Type, IQ, Params),
+process_iq("set"=Type, IQ, #params{}=Params, #state{}=State) ->
+	forward_ns(Type, IQ, Params, State),
 	{ok, State};
 
-process_iq("get"=Type, IQ, #params{}=Params, #state{xmppCom=XmppCom}=State) ->
-	forward_ns(Type, IQ, Params),
+process_iq("get"=Type, IQ, #params{}=Params, #state{}=State) ->
+	forward_ns(Type, IQ, Params, State),
 	{ok, State};
 
 process_iq(_, IQ, _, State) ->
 	lager:info("Unknown Request: ~p~n", [IQ]),
 	{ok, State}.
 
-forward_ns(Type, IQ, #params{}=Params) ->
+forward_ns(_Type, IQ, #params{}=_Params, _State) ->
 	%%TODO pattern matching namespace choose processor
 	lager:info("Choose processor for IQ:~p~n", [IQ]).
 
-forward_response(_, #received_packet{id=Id}=IQ, Params) ->
-	P = ecomponent:get_processor(Id),
-	lager:info("Processor ~p ~s", [P, Id]);
+forward_response(Type, #received_packet{id=Id}=IQ, Params, State) ->
+	case ecomponent:get_processor(Id) of
+		undefined -> ok;
+		P ->
+			lager:info("Processor ~p ~s", [P, Id]),
+			spawn(P, process_iq, [Type, IQ, Params, State]),
+			ok
+	end;
 
-forward_response(_, _, _) -> 
+forward_response(_, _, _, _) -> 
 	ok.
+
