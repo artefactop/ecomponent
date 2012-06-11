@@ -18,7 +18,7 @@ pre_process_iq(Type, IQ, From, State) ->
 
 process_iq("get", IQ, #params{ns=?NS_PING}, #state{xmppCom=XmppCom}=State) ->
 	Result = exmpp_iq:result(IQ),
-	ecomponent:send_packet(XmppCom, Result),
+	ecomponent:send_packet(XmppCom, Result, ?MODULE),
 	{ok, State};
 
 process_iq("error"=Type, IQ, #params{from=_From, ns=_Ns, payload=_Payload}=Params, State) ->
@@ -44,6 +44,10 @@ process_iq(_, IQ, _, State) ->
 forward_ns(Type, IQ, #params{}=Params) ->
 	%%TODO pattern matching namespace choose processor
 	lager:info("Choose processor for IQ:~p~n", [IQ]).
+
+forward_response(_, #received_packet{id=Id}=IQ, Params) ->
+	P = ecomponent:get_processor(Id),
+	lager:info("Processor ~p ~s", [P, Id]);
 
 forward_response(_, _, _) -> 
 	ok.
