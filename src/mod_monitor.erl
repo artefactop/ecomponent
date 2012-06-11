@@ -69,7 +69,7 @@ l_accept(Id, Max, Period) ->
 			false;
 	_ ->
 			Timestamp=N#monitor.timestamp,
-		Counter=N#monitor.counter+1,
+			Counter=N#monitor.counter+1,
 			D = to_mile(timer:now_diff(now(),Timestamp)),
 	if D > Period ->
 					NC = reset_counter(D, Counter, Max, Period),
