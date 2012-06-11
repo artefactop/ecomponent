@@ -19,7 +19,7 @@
 -export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1]).
 
 %% gen_server callbacks
--export([start_link/0, init/6, init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 start_link() ->
@@ -37,20 +37,22 @@ start_link() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init(_) ->
-  lager:info("Loading Application",[]),
+  lager:info("Loading Application eComponent", []),
   init(application:get_env(ecomponent, jid),
        application:get_env(ecomponent, pass),
        application:get_env(ecomponent, server),
        application:get_env(ecomponent, port),
        application:get_env(ecomponent, whitelist),
+       application:get_env(ecomponent, max_per_period),
+       application:get_env(ecomponent, period_seconds),
        application:get_env(ecomponent, handler)).
 
 
-init(JID, Pass, Server, Port, WhiteDomain, Handler) ->
+init(JID, Pass, Server, Port, WhiteList, MaxPerPeriod, PeriodSeconds, Handler) ->
     application:start(exmpp),
-    mod_monitor:init(), %%TODO make throttle 
+    mod_monitor:init(WhiteList),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    {ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteDomain=[list_to_binary(S) || S <- string:tokens(WhiteDomain, ",")], handler=Handler}}.
+    {ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, handler=Handler}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -58,8 +60,8 @@ init(JID, Pass, Server, Port, WhiteDomain, Handler) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{handler=Handler}=State) ->
-  %%TODO make throttle
+handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, handler=Handler}=State) ->
+  mod_monitor:accept(From, MaxPerPeriod, PeriodSeconds),
   spawn(Handler, pre_process_iq, [Type, IQ, From, State]),
   {noreply, State};
 
