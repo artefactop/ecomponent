@@ -19,11 +19,11 @@ process_iq("get", IQ, #params{ns=?NS_PING}, #state{xmppCom=XmppCom}=State) ->
 	ecomponent:send_packet(XmppCom, Result, ?MODULE),
 	{ok, State};
 
-process_iq("error"=Type, IQ, #params{}=Params, State) ->
+process_iq("error"=Type, IQ, #params{}=Params, #state{}=State) ->
 	forward_response(Type, IQ, Params, State),
 	{ok, State};
 
-process_iq("result"=Type, IQ, #params{}=Params, State) ->
+process_iq("result"=Type, IQ, #params{}=Params, #state{}=State) ->
 	forward_response(Type, IQ, Params, State),
 	{ok, State};
 
@@ -39,9 +39,17 @@ process_iq(_, IQ, _, State) ->
 	lager:info("Unknown Request: ~p~n", [IQ]),
 	{ok, State}.
 
-forward_ns(_Type, IQ, #params{}=_Params, _State) ->
-	%%TODO pattern matching namespace choose processor
-	lager:info("Choose processor for IQ:~p~n", [IQ]).
+forward_ns(Type, IQ, #params{ns=Ns}=Params, #state{processors=Processors}=State) ->
+	lager:info("Choose processor for IQ:~p~n", [IQ]),
+	case ecomponent:get_processor_by_ns(Ns, Processors) of
+		undefined -> 
+			spawn(ns_processor, process_iq, [Type, IQ, Params, State]),
+			ok;
+		P ->
+			lager:info("Processor ~p ~p", [P, Ns]),
+			spawn(P, process_iq, [Type, IQ, Params, State]),
+			ok
+	end.
 
 forward_response(Type, #received_packet{id=Id}=IQ, Params, State) ->
 	case ecomponent:get_processor(Id) of

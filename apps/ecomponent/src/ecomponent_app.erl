@@ -29,7 +29,7 @@ start() ->
 	application:start(ecomponent).
 
 start(_StartType, _StartArgs) ->
-    case achievement_sup:start_link() of
+    case ecomponent_sup:start_link() of
 	{ok, Pid} ->
 	    {ok, Pid};
 	Error ->

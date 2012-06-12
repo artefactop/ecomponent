@@ -18,10 +18,10 @@
 -record(matching, {id, processor}).
 
 %% API
--export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1, send_packet/3, get_processor/1]).
+-export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1, send_packet/3, get_processor/1, get_processor_by_ns/2]).
 
 %% gen_server callbacks
--export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([start_link/0, init/9, init/1, handle_call/3, handle_cast/2, handle_info/2,
 				 terminate/2, code_change/3]).
 
 start_link() ->
@@ -47,18 +47,28 @@ init(_) ->
 			 application:get_env(ecomponent, whitelist),
 			 application:get_env(ecomponent, max_per_period),
 			 application:get_env(ecomponent, period_seconds),
-			 application:get_env(ecomponent, handler)),
+			 application:get_env(ecomponent, handler),
+			 application:get_env(ecomponent, processors)),
 	mnesia:create_schema([node()]),
 	application:start(mnesia),
 	mnesia:create_table(matching,
 						[{attributes, record_info(fields, matching)}]).
 
 
-init(JID, Pass, Server, Port, WhiteList, MaxPerPeriod, PeriodSeconds, Handler) ->
+init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, MaxPerPeriod, PeriodSeconds, {_,Handler}, Processors) -> %%TODO check values /= undefined
+lager:info("JID ~p", [JID]),
+lager:info("Pass ~p", [Pass]),
+lager:info("Server ~p", [Server]),
+lager:info("Port ~p", [Port]),
+lager:info("WhiteList ~p", [WhiteList]),
+lager:info("MaxPerPeriod ~p", [MaxPerPeriod]),
+lager:info("PeriodSeconds ~p", [PeriodSeconds]),
+lager:info("Handler ~p", [Handler]),
+lager:info("Processors ~p", [Processors]),
 		application:start(exmpp),
 		mod_monitor:init(WhiteList),
 		{_, XmppCom} = make_connection(JID, Pass, Server, Port),
-		{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, handler=Handler}}.
+		{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, handler=Handler, processors=Processors}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -169,6 +179,12 @@ get_processor(Id) ->
 		undefined;
 	[N|_] -> N#matching.processor
 	end.
+
+get_processor_by_ns(_, []) -> undefined;
+get_processor_by_ns(Ns, Processors) ->
+	lager:info("Search namespace ~s on ~p", [Ns, Processors]),
+	proplists:get_value(Ns, Processors).
+
 
 make_connection(JID, Pass, Server, Port) -> 
 	XmppCom = exmpp_component:start(),
