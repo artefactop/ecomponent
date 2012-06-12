@@ -21,7 +21,7 @@
 -export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1, send_packet/3, get_processor/1, get_processor_by_ns/2]).
 
 %% gen_server callbacks
--export([start_link/0, init/9, init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
 				 terminate/2, code_change/3]).
 
 start_link() ->
@@ -40,6 +40,9 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
+	mnesia:create_schema([node()]),
+	application:start(mnesia),
+	mnesia:create_table(matching, [{attributes, record_info(fields, matching)}]),
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
 			 application:get_env(ecomponent, server),
@@ -47,28 +50,26 @@ init(_) ->
 			 application:get_env(ecomponent, whitelist),
 			 application:get_env(ecomponent, max_per_period),
 			 application:get_env(ecomponent, period_seconds),
-			 application:get_env(ecomponent, handler),
-			 application:get_env(ecomponent, processors)),
-	mnesia:create_schema([node()]),
-	application:start(mnesia),
-	mnesia:create_table(matching,
-						[{attributes, record_info(fields, matching)}]).
+			 application:get_env(ecomponent, processors)).
 
 
-init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, MaxPerPeriod, PeriodSeconds, {_,Handler}, Processors) -> %%TODO check values /= undefined
-lager:info("JID ~p", [JID]),
-lager:info("Pass ~p", [Pass]),
-lager:info("Server ~p", [Server]),
-lager:info("Port ~p", [Port]),
-lager:info("WhiteList ~p", [WhiteList]),
-lager:info("MaxPerPeriod ~p", [MaxPerPeriod]),
-lager:info("PeriodSeconds ~p", [PeriodSeconds]),
-lager:info("Handler ~p", [Handler]),
-lager:info("Processors ~p", [Processors]),
-		application:start(exmpp),
-		mod_monitor:init(WhiteList),
-		{_, XmppCom} = make_connection(JID, Pass, Server, Port),
-		{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, handler=Handler, processors=Processors}}.
+init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}) ->
+	lager:info("JID ~p", [JID]),
+	lager:info("Pass ~p", [Pass]),
+	lager:info("Server ~p", [Server]),
+	lager:info("Port ~p", [Port]),
+	lager:info("WhiteList ~p", [WhiteList]),
+	lager:info("MaxPerPeriod ~p", [MaxPerPeriod]),
+	lager:info("PeriodSeconds ~p", [PeriodSeconds]),
+	lager:info("Processors ~p", [Processors]),
+	application:start(exmpp),
+	mod_monitor:init(WhiteList),
+	lager:info("mod_monitor started"),
+	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
+	{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors}};
+init(_, _, _, _, _, _, _ , _) ->
+lager:error("Some param is undefined"),
+	{error, #state{}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -76,10 +77,10 @@ lager:info("Processors ~p", [Processors]),
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, handler=Handler}=State) ->
+handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
 	case mod_monitor:accept(From, MaxPerPeriod, PeriodSeconds) of
 		true ->
-			spawn(Handler, pre_process_iq, [Type, IQ, From, State]),
+			spawn(iq_handler, pre_process_iq, [Type, IQ, From, State]),
 			{noreply, State};
 		_ ->
 			{noreply, State}
@@ -162,7 +163,7 @@ send_packet(XmppCom, Packet, _) ->
 
 save_id(Id, Processor) ->
 	N = #matching{id=Id, processor=Processor},
-	case mnesia:dirty_write(matching, N) of
+	case mnesia:write({matching, N}) of
 	{'EXIT', Reason} ->
 		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, Processor, Reason]);
 	_ -> N
