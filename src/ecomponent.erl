@@ -193,11 +193,11 @@ prepare_processors(P) ->
         p_p(P).
 
 p_p([]) -> ok;
-p_p([{Type, NS, Processor}|T]) ->
+p_p([{NS, {Type, Processor}}|T]) ->
         ets:insert(?NS_PROCESSOR, {NS, {Type, Processor}}),
         p_p(T);
-p_p(_) ->
-        lager:warning("Unexpected NS/Processor Pair",[]),
+p_p(_P) ->
+        lager:warning("Unexpected NS/Processor Pair ~p~n",[_P]),
         ok.
 
 get_processor_by_ns(NS) ->	
