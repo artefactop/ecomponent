@@ -18,7 +18,7 @@
 -record(matching, {id, processor}).
 
 %% API
--export([get_stats/0, prepare_id/1, unprepare_id/1, is_allowed/2, get_port/1, send_packet/3, get_processor/1, get_processor_by_ns/2]).
+-export([prepare_id/1, unprepare_id/1, is_allowed/2, send_packet/3, get_processor/1, get_processor_by_ns/2]).
 
 %% gen_server callbacks
 -export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -222,24 +222,3 @@ is_allowed({_,D,_}, WhiteDomain) ->
 is_allowed(Domain, WhiteDomain) -> 
 	lists:any(fun(S) -> S == Domain end, WhiteDomain).
 
-get_port(PortMonitor) -> get_port(PortMonitor, 5).
-get_port(_, 0) -> 
-	lager:error("Problem Retrieving Port Number",[]),
-	{error, "Problem Retrieving Port Number"};
-get_port(PortMonitor, T) ->
-	PortMonitor ! {get_port, self()},
-	receive
-		{ok, Port} -> {ok, Port};
-		{error, R} -> {error, R}
-	after 200 -> get_port(PortMonitor, T-1) 
-	end.
-
-get_stats() ->
-	get_stats(3, whereis(ecomponent)).
-get_stats(0, _) -> -1;
-get_stats(N, PID) ->
-	PID!{get_active, self()},
-	receive 
-		{result_active, A} -> A
-	after 100 -> get_stats(N-1, PID)
-	end.
