@@ -49,8 +49,8 @@ forward_ns(#params{ns=NS}=Params, ParentPID) ->
 				_ -> 
 					lager:warning("Process not Alive for NS: ~p~n", [NS])
 			end;
-		_ -> 
-			lager:warning("Unknown Request to Forward: ~p~n", [Params])			
+		Proc -> 
+			lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Params])
 	end.
 
 forward_response(#params{iq=#iq{id=ID}}=Params, PID) ->
