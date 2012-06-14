@@ -201,7 +201,7 @@ p_p(_) ->
         ok.
 
 get_processor_by_ns(NS) ->	
-	lager:info("Search namespace ~s on ~p", [NS]),
+	lager:info("Search namespace for ~p~n", [NS]),
 	 case ets:lookup(?NS_PROCESSOR, NS) of
                 [{_, {_T, _P}=Result}] -> Result;
                 _ -> []
