@@ -47,8 +47,9 @@ forward_ns(Type, IQ, #params{ns=Ns}=Params, #state{processors=Processors}=State)
 		{mod, P} ->
 			lager:info("Processor ~p ~p", [P, Ns]),
 			spawn(P, process_iq, [Type, IQ, Params, State]);
-		{pid, PID} when is_pid(PID) ->
-			case erlang:is_process_alive(PID) of
+		{app, Name} ->
+			PID = whereis(Name),			
+			case erlang:is_pid(PID) andalso erlang:is_process_alive(PID) of
 				true -> 
 					PID ! {iq, Type, IQ, Params, State};
 				_ -> 

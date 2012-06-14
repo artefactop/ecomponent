@@ -184,7 +184,6 @@ get_processor_by_ns(Ns, Processors) ->
 	lager:info("Search namespace ~s on ~p", [Ns, Processors]),
 	proplists:get_value(Ns, Processors).
 
-
 make_connection(JID, Pass, Server, Port) -> 
 	XmppCom = exmpp_component:start(),
 	make_connection(XmppCom, JID, Pass, Server, Port, 20).
