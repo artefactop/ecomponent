@@ -43,12 +43,19 @@ forward_ns(Type, IQ, #params{ns=Ns}=Params, #state{processors=Processors}=State)
 	lager:info("Choose processor for IQ:~p~n", [IQ]),
 	case ecomponent:get_processor_by_ns(Ns, Processors) of
 		undefined -> 
-			spawn(ns_processor, process_iq, [Type, IQ, Params, State]),
-			ok;
-		P ->
+			spawn(ns_processor, process_iq, [Type, IQ, Params, State]);
+		{mod, P} ->
 			lager:info("Processor ~p ~p", [P, Ns]),
-			spawn(P, process_iq, [Type, IQ, Params, State]),
-			ok
+			spawn(P, process_iq, [Type, IQ, Params, State]);
+		{pid, PID} when is_pid(PID) ->
+			case erlang:is_process_alive(PID) of
+				true -> 
+					PID ! {iq, Type, IQ, Params, State};
+				_ -> 
+					lager:warning("Process not Alive for NS: ~p~n", [Ns])
+			end;
+		_ -> 
+			lager:warning("Unknown Request to Forward: ~p~n", [IQ])			
 	end.
 
 forward_response(Type, #received_packet{id=Id}=IQ, Params, State) ->

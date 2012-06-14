@@ -12,7 +12,7 @@ process_iq("error", IQ, _, _) ->
 	ok;
 
 process_iq("result", IQ, _, _) ->
-	lager:info("Get resul IQ: ~p", [IQ]),
+	lager:info("Get result IQ: ~p", [IQ]),
 	ok;
 
 process_iq(_, IQ, _, _) ->
@@ -20,5 +20,4 @@ process_iq(_, IQ, _, _) ->
 	Error = exmpp_iq:error(IQ, 'service-unavailable'),
 	ecomponent:send_packet(Error),
 	ok.
-
 
