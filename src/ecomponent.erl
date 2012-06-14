@@ -40,8 +40,6 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
-	mnesia:create_schema([node()]),
-	application:start(mnesia),
 	mnesia:create_table(matching, [{attributes, record_info(fields, matching)}]),
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
@@ -201,7 +199,7 @@ make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
 		lager:info("Connected.~n",[]),
 		{R, XmppCom}
 	catch
-		Exception -> lager:warn("Exception: ~p~n",[Exception]),	 %%TODO change for lager
+		Exception -> lager:warning("Exception: ~p~n",[Exception]),	 %%TODO change for lager
 		timer:sleep((20-Tries) * 200),
 		make_connection(XmppCom, JID, Pass, Server, Port, Tries-1)
 	end.
