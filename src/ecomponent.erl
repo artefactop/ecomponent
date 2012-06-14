@@ -82,7 +82,9 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 			{noreply, State}
 	end;
 
-handle_info({send, #iq{kind=Kind, id=ID}=Packet, NS, PID}, #state{xmppCom=XmppCom}=State) ->
+handle_info({send, Packet, NS, PID}, #state{xmppCom=XmppCom}=State) ->
+	Kind = exmpp_iq:get_kind(Packet),
+	ID = exmpp_stanza:get_id(Packet),
 	case Kind of
 		request -> 
 			save_id(ID, NS, PID);
