@@ -15,10 +15,8 @@
 -include_lib("exmpp/include/exmpp_client.hrl").
 -include("../include/ecomponent.hrl").
 
--record(matching, {id, processor}).
-
 %% API
--export([prepare_id/1, unprepare_id/1, is_allowed/2, send_packet/3, get_processor/1, get_processor_by_ns/2]).
+-export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1]).
 
 %% gen_server callbacks
 -export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -40,6 +38,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
+	mnesia:delete_table(matching),
 	mnesia:create_table(matching, [{attributes, record_info(fields, matching)}]),
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
@@ -50,7 +49,6 @@ init(_) ->
 			 application:get_env(ecomponent, period_seconds),
 			 application:get_env(ecomponent, processors)).
 
-
 init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}) ->
 	lager:info("JID ~p", [JID]),
 	lager:info("Pass ~p", [Pass]),
@@ -60,8 +58,8 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 	lager:info("MaxPerPeriod ~p", [MaxPerPeriod]),
 	lager:info("PeriodSeconds ~p", [PeriodSeconds]),
 	lager:info("Processors ~p", [Processors]),
-	application:start(exmpp),
 	mod_monitor:init(WhiteList),
+	prepare_processors(Processors),
 	lager:info("mod_monitor started"),
 	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
 	{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors}};
@@ -78,11 +76,21 @@ lager:error("Some param is undefined"),
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
 	case mod_monitor:accept(From, MaxPerPeriod, PeriodSeconds) of
 		true ->
-			spawn(iq_handler, pre_process_iq, [Type, IQ, From, State]),
+			spawn(iq_handler, pre_process_iq, [Type, IQ, From, whereis(?MODULE)]),
 			{noreply, State};
 		_ ->
 			{noreply, State}
 	end;
+
+handle_info({send, #iq{kind=Kind, id=ID}=Packet, NS, PID}, #state{xmppCom=XmppCom}=State) ->
+	case Kind of
+		request -> 
+			save_id(ID, NS, PID);
+		_ -> 
+			ok
+	end,
+        exmpp_component:send_packet(XmppCom, Packet),
+	{noreply, State};
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
 	lager:info("Connection Closed. Trying to Reconnect...~n", []),
@@ -152,15 +160,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-send_packet(XmppCom, #iq{kind=request, id=ID}=Packet, Processor) ->
-	save_id(ID, Processor),
-	exmpp_component:send_packet(XmppCom, Packet);
-
-send_packet(XmppCom, Packet, _) ->
-	exmpp_component:send_packet(XmppCom, Packet).
-
-save_id(Id, Processor) ->
-	N = #matching{id=Id, processor=Processor},
+save_id(Id, NS, Processor) ->
+	N = #matching{id=Id, ns=NS, processor=Processor},
 	case mnesia:write({matching, N}) of
 	{'EXIT', Reason} ->
 		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, Processor, Reason]);
@@ -176,13 +177,35 @@ get_processor(Id) ->
 	[] -> 
 		lager:warning("Found no processor for ~s",[Id]),
 		undefined;
-	[N|_] -> N#matching.processor
+	[#matching{}=N|_] -> 
+		N;
+	_ ->
+		lager:warning("Found no matching processor for ~s",[Id])
 	end.
 
-get_processor_by_ns(_, []) -> undefined;
-get_processor_by_ns(Ns, Processors) ->
-	lager:info("Search namespace ~s on ~p", [Ns, Processors]),
-	proplists:get_value(Ns, Processors).
+prepare_processors(P) ->
+        case ets:info(?NS_PROCESSOR) of
+                undefined ->
+                        ets:new(?NS_PROCESSOR, [named_table, public]);
+                _ ->
+                        ets:delete_all_objects(?NS_PROCESSOR)
+        end,
+        p_p(P).
+
+p_p([]) -> ok;
+p_p([{Type, NS, Processor}|T]) ->
+        ets:insert(?NS_PROCESSOR, {NS, {Type, Processor}}),
+        p_p(T);
+p_p(_) ->
+        lager:warning("Unexpected NS/Processor Pair",[]),
+        ok.
+
+get_processor_by_ns(NS) ->	
+	lager:info("Search namespace ~s on ~p", [NS]),
+	 case ets:lookup(?NS_PROCESSOR, NS) of
+                [{_, {_T, _P}=Result}] -> Result;
+                _ -> []
+        end.
 
 make_connection(JID, Pass, Server, Port) -> 
 	XmppCom = exmpp_component:start(),
