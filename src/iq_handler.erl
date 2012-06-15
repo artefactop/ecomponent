@@ -53,11 +53,12 @@ forward_ns(#params{ns=NS}=Params, ParentPID) ->
 			lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Params])
 	end.
 
-forward_response(#params{iq=#iq{id=ID}}=Params, PID) ->
+forward_response(#params{iq=IQ}=Params, PID) ->
+	ID = exmpp_stanza:get_id(IQ),
 	case ecomponent:get_processor(ID) of
 		#matching{ns=NS, processor=PID} when is_pid(PID) ->
 			lager:info("Processor ~p ~p ~n", [PID, NS]),
-			PID ! {response, NS, Params},
+			PID ! #response{ns=NS, params=Params},
 			ok;
 		_ -> 
 			ok
