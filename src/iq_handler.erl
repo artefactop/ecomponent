@@ -16,7 +16,7 @@ pre_process_iq(Type, IQ, From, PID) ->
 
 process_iq(#params{type="get", iq=IQ, ns=?NS_PING}, PID) ->
 	Result = exmpp_iq:result(IQ),
-	send(Result, ?NS_PING, PID);
+	ecomponent:send(Result, ?NS_PING, PID);
 
 process_iq(#params{type="error"}=Params, PID) ->
 	forward_response(Params, PID);
@@ -67,8 +67,3 @@ forward_response(#params{iq=IQ}=Params, PID) ->
 forward_response(_, _) -> 
 	ok.
 
-send(Packet, NS, PID) when is_pid(PID) ->
-	PID ! {send, Packet, NS, PID};
-send(_, _, PID) -> 
-	lager:warn("Invalid PID to send packet ~p~n", [PID]),
-	ok.

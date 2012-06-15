@@ -16,7 +16,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1]).
+-export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, send/1]).
 
 %% gen_server callbacks
 -export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -243,4 +243,18 @@ is_allowed({_,D,_}, WhiteDomain) ->
 	is_allowed(D, WhiteDomain);
 is_allowed(Domain, WhiteDomain) -> 
 	lists:any(fun(S) -> S == Domain end, WhiteDomain).
+
+send(Packet) ->
+	Payload = exmpp_iq:get_payload(Packet),
+	NS = exmpp_xml:get_ns_as_atom(Payload),
+	send(Packet, NS).
+
+send(Packet, NS) ->
+        send(Packet, NS, whereis(?MODULE)).
+
+send(Packet, NS, PID) when is_pid(PID) ->
+        PID ! {send, Packet, NS, PID};
+send(_, _, PID) ->
+        lager:warn("Invalid PID to send packet ~p~n", [PID]),
+        ok.
 
