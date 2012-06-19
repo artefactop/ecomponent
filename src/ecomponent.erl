@@ -83,16 +83,23 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 			{noreply, State}
 	end;
 
-handle_info({send, Packet, NS, PID}, #state{xmppCom=XmppCom}=State) ->
+handle_info({send, Packet, NS, PID}, #state{jid=JID, xmppCom=XmppCom}=State) ->
 	Kind = exmpp_iq:get_kind(Packet),
 	ID = exmpp_stanza:get_id(Packet),
+	From = exmpp_stanza:get_sender(Packet),
 	case Kind of
 		request -> 
 			save_id(ID, NS, PID);
 		_ -> 
 			ok
 	end,
-        exmpp_component:send_packet(XmppCom, Packet),
+	case From of
+		undefined ->
+			NewPacket = exmpp_xml:set_attribute(Packet, <<"from">>, JID),
+			exmpp_component:send_packet(XmppCom, NewPacket);
+		_ ->
+    		exmpp_component:send_packet(XmppCom, Packet)
+    end,
 	{noreply, State};
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
