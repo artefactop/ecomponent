@@ -10,7 +10,12 @@
 pre_process_iq(Type, IQ, From) ->
 	lager:info("Preparing: ~p~n On State:~n", [IQ]),
 	Payload = exmpp_iq:get_payload(IQ),
-	NS = exmpp_iq:get_payload_ns_as_atom(Payload),
+	case Payload of
+		undefined -> 
+			NS = undefined;
+		_ -> 
+			NS = exmpp_iq:get_payload_ns_as_atom(Payload)
+	end,
 	lager:info("NS:~p~n", [NS]),
 	process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
 
