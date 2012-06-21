@@ -14,7 +14,7 @@ pre_process_iq(Type, IQ, From) ->
 		undefined -> 
 			NS = undefined;
 		_ -> 
-			NS = exmpp_iq:get_payload_ns_as_atom(Payload)
+			NS = exmpp_xml:get_ns_as_atom(Payload)
 	end,
 	lager:info("NS:~p~n", [NS]),
 	process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
