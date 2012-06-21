@@ -16,7 +16,7 @@ pre_process_iq(Type, IQ, From) ->
 
 process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
 	Result = exmpp_iq:result(IQ),
-	ecomponent:send(Result, ?NS_PING);
+	ecomponent:send(Result, ?NS_PING, undefined);
 
 process_iq(#params{type="error"}=Params) ->
 	forward_response(Params);
@@ -54,12 +54,22 @@ forward_ns(#params{ns=NS}=Params) ->
 	end.
 
 forward_response(#params{iq=IQ}=Params) ->
+	lager:info("Forwarding Response: ~p ~n", [Params]),
 	ID = exmpp_stanza:get_id(IQ),
 	case ecomponent:get_processor(ID) of
-		#matching{ns=NS, processor=PID} when is_pid(PID) ->
-			lager:info("Processor ~p ~p ~n", [PID, NS]),
-			PID ! #response{ns=NS, params=Params},
+		undefined -> 
 			ok;
+		#matching{processor=undefined} ->
+			ok;
+		#matching{ns=NS, processor=App} ->
+			PID = whereis(App),
+			case is_pid(PID) of 
+				true ->
+					lager:info("Processor ~p ~p ~n", [PID, NS]),
+					PID ! #response{ns=NS, params=Params},
+					ok;
+				_ -> ok
+			end;
 		_ -> 
 			ok
 	end;

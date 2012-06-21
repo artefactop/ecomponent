@@ -17,7 +17,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, send/1]).
+-export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/3]).
 
 %% gen_server callbacks
 -export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -39,6 +39,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
+	mnesia:start(),
 	mnesia:delete_table(matching),
 	mnesia:create_table(matching, [{attributes, record_info(fields, matching)}]),
 	init(application:get_env(ecomponent, jid),
@@ -83,19 +84,21 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 			{noreply, State}
 	end;
 
-handle_info({send, Packet, NS, PID}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+handle_info({send, Packet, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+	lager:info("trying {send} with ~p ~p ~p ~p ~n", [Packet, NS, App, State]),
 	Kind = exmpp_iq:get_kind(Packet),
 	ID = exmpp_stanza:get_id(Packet),
 	From = exmpp_stanza:get_sender(Packet),
 	case Kind of
 		request -> 
-			save_id(ID, NS, PID);
+			save_id(ID, NS, App);
 		_ -> 
 			ok
 	end,
 	case From of
 		undefined ->
-			NewPacket = exmpp_xml:set_attribute(Packet, <<"from">>, JID),
+			NewPacket = exmpp_xml:set_attribute(Packet, from, JID),
+			lager:info("trying with ~p ~p ~p ~p ~n", [NewPacket, NS, App, State]),	
 			exmpp_component:send_packet(XmppCom, NewPacket);
 		_ ->
     		exmpp_component:send_packet(XmppCom, Packet)
@@ -169,16 +172,21 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-save_id(Id, NS, Processor) ->
-	N = #matching{id=Id, ns=NS, processor=Processor},
-	case mnesia:write({matching, N}) of
+save_id(_, _, undefined) -> ok;
+save_id(Id, NS, App) ->
+	lager:info("mnesia info: ~p", [mnesia:info()]),
+	N = #matching{id=Id, ns=NS, processor=App},
+	lager:info("Attempting to Save ID: ~p ~p ~n", [Id, N]),
+	case mnesia:dirty_write(matching, N) of
 	{'EXIT', Reason} ->
-		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, Processor, Reason]);
-	_ -> N
+		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, App, Reason]);
+	_ -> 
+		 lager:info("Saved ID: ~p ~p ~n", [Id, N]),
+		N
 	end.
 
 get_processor(Id) ->
+	lager:info("Reading: ~p ~n", [Id]),
 	V = mnesia:dirty_read(matching, Id),
 	case V of
 	{'EXIT', Reason} ->
@@ -252,17 +260,16 @@ is_allowed({_,D,_}, WhiteDomain) ->
 is_allowed(Domain, WhiteDomain) -> 
 	lists:any(fun(S) -> S == Domain end, WhiteDomain).
 
-send(Packet) ->
+send(Packet, App) ->
+	lager:info("Trying to send packet", []),
 	Payload = exmpp_iq:get_payload(Packet),
 	NS = exmpp_xml:get_ns_as_atom(Payload),
-	send(Packet, NS).
+	send(Packet, NS, App).
 
-send(Packet, NS) ->
-        send(Packet, NS, whereis(?MODULE)).
-
-send(Packet, NS, PID) when is_pid(PID) ->
-        PID ! {send, Packet, NS, PID};
-send(_, _, PID) ->
-        lager:warn("Invalid PID to send packet ~p~n", [PID]),
-        ok.
-
+send(Packet, NS, App) ->
+	case whereis(?MODULE) of
+		undefined -> 
+			ok;
+		MPID when is_pid(MPID) -> 
+		        MPID ! {send, Packet, NS, App}
+	end.
