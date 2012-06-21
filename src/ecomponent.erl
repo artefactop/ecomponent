@@ -97,7 +97,7 @@ handle_info({send, Packet, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
 	end,
 	case From of
 		undefined ->
-			NewPacket = exmpp_xml:set_attribute(Packet, from, JID),
+			NewPacket = exmpp_xml:set_attribute(Packet, <<"from">>, JID),
 			lager:info("trying with ~p ~p ~p ~p ~n", [NewPacket, NS, App, State]),	
 			exmpp_component:send_packet(XmppCom, NewPacket);
 		_ ->
