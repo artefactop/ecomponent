@@ -188,6 +188,7 @@ save_id(Id, NS, App) ->
 get_processor(Id) ->
 	lager:info("Reading: ~p ~n", [Id]),
 	V = mnesia:dirty_read(matching, Id),
+	mnesia:dirty_delete(matching, Id),
 	case V of
 	{'EXIT', Reason} ->
 		lager:error("Error getting processor with id ~s on mnesia, reason: ~p",[Id, Reason]),
@@ -198,7 +199,8 @@ get_processor(Id) ->
 	[#matching{}=N|_] -> 
 		N;
 	_ ->
-		lager:warning("Found no matching processor for ~s",[Id])
+		lager:warning("Found no matching processor for ~s",[Id]),
+		undefined
 	end.
 
 prepare_processors(P) ->
