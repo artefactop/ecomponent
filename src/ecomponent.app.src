@@ -10,5 +10,14 @@
                   lager
                  ]},
   {mod, { ecomponent_app, []}},
-  {env, []}
+  {env, [
+          {jid, "ecomponent.localhost" },
+          {server, "localhost" },
+          {port, 8888 },
+          {pass, "password" },
+          {whitelist, ["jid.localhost"] }, 
+          {max_per_period, 10 },
+          {period_seconds, 6 },
+          {processors, [{'namespace', {'app','ns_processor'}}] }
+        ]}
  ]}.
