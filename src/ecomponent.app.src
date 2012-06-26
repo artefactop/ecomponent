@@ -6,8 +6,9 @@
   {applications, [
                   kernel,
                   stdlib,
-		exmpp,
-                  lager
+		  exmpp,
+                  lager,
+		  mnesia
                  ]},
   {mod, { ecomponent_app, []}},
   {env, [

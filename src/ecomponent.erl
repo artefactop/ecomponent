@@ -39,7 +39,6 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
-	mnesia:start(),
 	mnesia:delete_table(matching),
 	mnesia:create_table(matching, [{attributes, record_info(fields, matching)}]),
 	init(application:get_env(ecomponent, jid),

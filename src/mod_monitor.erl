@@ -21,7 +21,6 @@ init() -> init([]).
 
 init(Whitelist) ->
 	prepare_whitelist(Whitelist),
-	mnesia:start(),
 	mnesia:create_schema([node()]),
 	mnesia:create_table(monitor,
 						[{attributes, record_info(fields, monitor)}]).
