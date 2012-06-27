@@ -39,8 +39,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
-	mnesia:delete_table(matching),
-	mnesia:create_table(matching, [{attributes, record_info(fields, matching)}]),
+	timim:init(),
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
 			 application:get_env(ecomponent, server),
@@ -169,28 +168,21 @@ code_change(_OldVsn, State, _Extra) ->
 save_id(_, _, undefined) -> ok;
 save_id(Id, NS, App) ->
 	N = #matching{id=Id, ns=NS, processor=App},
-	case mnesia:dirty_write(matching, N) of
-	{'EXIT', Reason} ->
-		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, App, Reason]);
-	_ ->
-		N
+	case timem:insert(Id, N) of
+		true ->
+			N;
+		_ ->
+                lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
 	end.
 
 get_processor(Id) ->
-	V = mnesia:dirty_read(matching, Id),
-	mnesia:dirty_delete(matching, Id),
+	V = timem:remove(Id),
 	case V of
-	{'EXIT', Reason} ->
-		lager:error("Error getting processor with id ~s on mnesia, reason: ~p",[Id, Reason]),
-		undefined; 
-	[] -> 
-		lager:warning("Found no processor for ~s",[Id]),
-		undefined;
-	[#matching{}=N|_] -> 
-		N;
-	_ ->
-		lager:warning("Found no matching processor for ~s",[Id]),
-		undefined
+		{_, #matching{}=N} -> 
+			N;
+		_ ->
+			lager:warning("Found no matching processor for ~s",[Id]),
+			undefined
 	end.
 
 prepare_processors(P) ->
