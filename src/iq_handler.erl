@@ -8,7 +8,6 @@
 -export([pre_process_iq/3]).
 
 pre_process_iq(Type, IQ, From) ->
-	lager:info("Preparing: ~p~n On State:~n", [IQ]),
 	Payload = exmpp_iq:get_payload(IQ),
 	case Payload of
 		undefined -> 
@@ -16,7 +15,6 @@ pre_process_iq(Type, IQ, From) ->
 		_ -> 
 			NS = exmpp_xml:get_ns_as_atom(Payload)
 	end,
-	lager:info("NS:~p~n", [NS]),
 	process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
 
 process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
@@ -39,12 +37,10 @@ process_iq(P) ->
 	lager:info("Unknown Request: ~p~n", [P]).
 
 forward_ns(#params{ns=NS}=Params) ->
-	lager:info("Choose processor for IQ:~p~n", [NS]),
 	case ecomponent:get_processor_by_ns(NS) of
 		undefined -> 
 			spawn(?MODULE, handle_unavailable,[Params]);
 		{mod, P} ->
-			lager:info("Processor ~p ~p", [P, NS]),
 			spawn(P, process_iq, [Params]);
 		{app, Name} ->
 			PID = whereis(Name),			
@@ -59,7 +55,6 @@ forward_ns(#params{ns=NS}=Params) ->
 	end.
 
 forward_response(#params{iq=IQ}=Params) ->
-	lager:info("Forwarding Response: ~p ~n", [Params]),
 	ID = exmpp_stanza:get_id(IQ),
 	case ecomponent:get_processor(ID) of
 		undefined -> 
@@ -70,7 +65,6 @@ forward_response(#params{iq=IQ}=Params) ->
 			PID = whereis(App),
 			case is_pid(PID) of 
 				true ->
-					lager:info("Processor ~p ~p ~n", [PID, NS]),
 					PID ! #response{ns=NS, params=Params},
 					ok;
 				_ -> ok

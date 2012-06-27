@@ -61,11 +61,10 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 	lager:info("Processors ~p", [Processors]),
 	mod_monitor:init(WhiteList),
 	prepare_processors(Processors),
-	lager:info("mod_monitor started"),
 	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
 	{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors}};
 init(_, _, _, _, _, _, _ , _) ->
-lager:error("Some param is undefined"),
+	lager:error("Some param is undefined"),
 	{error, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -84,7 +83,6 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 	end;
 
 handle_info({send, Packet, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
-	lager:info("trying {send} with ~p ~p ~p ~p ~n", [Packet, NS, App, State]),
 	Kind = exmpp_iq:get_kind(Packet),
 	ID = exmpp_stanza:get_id(Packet),
 	From = exmpp_stanza:get_sender(Packet),
@@ -97,7 +95,6 @@ handle_info({send, Packet, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
 	case From of
 		undefined ->
 			NewPacket = exmpp_xml:set_attribute(Packet, <<"from">>, JID),
-			lager:info("trying with ~p ~p ~p ~p ~n", [NewPacket, NS, App, State]),	
 			exmpp_component:send_packet(XmppCom, NewPacket);
 		_ ->
     		exmpp_component:send_packet(XmppCom, Packet)
@@ -156,8 +153,6 @@ handle_call(Info,_From, _State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-	lager:info("Terminating Component...", []),
-	application:stop(exmpp),
 	lager:info("Terminated Component.", []),
 	ok.
 
@@ -173,9 +168,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 save_id(_, _, undefined) -> ok;
 save_id(Id, NS, App) ->
-	lager:info("mnesia info: ~p", [mnesia:info()]),
 	N = #matching{id=Id, ns=NS, processor=App},
-	lager:info("Attempting to Save ID: ~p ~p ~n", [Id, N]),
 	case mnesia:dirty_write(matching, N) of
 	{'EXIT', Reason} ->
 		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, App, Reason]);
@@ -185,7 +178,6 @@ save_id(Id, NS, App) ->
 	end.
 
 get_processor(Id) ->
-	lager:info("Reading: ~p ~n", [Id]),
 	V = mnesia:dirty_read(matching, Id),
 	mnesia:dirty_delete(matching, Id),
 	case V of
@@ -203,13 +195,13 @@ get_processor(Id) ->
 	end.
 
 prepare_processors(P) ->
-        case ets:info(?NS_PROCESSOR) of
-                undefined ->
-                        ets:new(?NS_PROCESSOR, [named_table, public]);
-                _ ->
-                        ets:delete_all_objects(?NS_PROCESSOR)
-        end,
-        p_p(P).
+    case ets:info(?NS_PROCESSOR) of
+            undefined ->
+                    ets:new(?NS_PROCESSOR, [named_table, public]);
+            _ ->
+                    ets:delete_all_objects(?NS_PROCESSOR)
+    end,
+    p_p(P).
 
 p_p([]) -> ok;
 p_p([{NS, {Type, Processor}}|T]) ->
@@ -219,8 +211,7 @@ p_p(_P) ->
         lager:warning("Unexpected NS/Processor Pair ~p~n",[_P]),
         ok.
 
-get_processor_by_ns(NS) ->	
-	lager:info("Search namespace for ~p~n", [NS]),
+get_processor_by_ns(NS) ->
 	 case ets:lookup(?NS_PROCESSOR, NS) of
                 [{_, {_T, _P}=Result}] -> Result;
                 _ -> []
@@ -240,7 +231,7 @@ make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
 		lager:info("Connected.~n",[]),
 		{R, XmppCom}
 	catch
-		Exception -> lager:warning("Exception: ~p~n",[Exception]),	 %%TODO change for lager
+		Exception -> lager:warning("Exception: ~p~n",[Exception]),
 		timer:sleep((20-Tries) * 200),
 		make_connection(XmppCom, JID, Pass, Server, Port, Tries-1)
 	end.
@@ -262,7 +253,6 @@ is_allowed(Domain, WhiteDomain) ->
 	lists:any(fun(S) -> S == Domain end, WhiteDomain).
 
 send(Packet, App) ->
-	lager:info("Trying to send packet", []),
 	Payload = exmpp_iq:get_payload(Packet),
 	NS = exmpp_xml:get_ns_as_atom(Payload),
 	send(Packet, NS, App).
