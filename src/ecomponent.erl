@@ -61,7 +61,7 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 	mod_monitor:init(WhiteList),
 	prepare_processors(Processors),
 	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
-	{ok, #state{xmppCom=XmppCom, jid=JID, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors}};
+	{ok, #state{xmppCom=XmppCom, jid=JID, iqId = 1, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors}};
 init(_, _, _, _, _, _, _ , _) ->
 	lager:error("Some param is undefined"),
 	{error, #state{}}.
@@ -81,14 +81,16 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 			{noreply, State}
 	end;
 
-handle_info({send, Packet, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
-	Kind = exmpp_iq:get_kind(Packet),
-	ID = exmpp_stanza:get_id(Packet),
-	From = exmpp_stanza:get_sender(Packet),
+handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID}=State) ->
+	Kind = exmpp_iq:get_kind(OPacket),
+	From = exmpp_stanza:get_sender(OPacket),
 	case Kind of
 		request -> 
+			Packet = exmpp_xml:set_attribute(OPacket, <<"id">>, erlang:integer_to_list(IqID)),
+		        ID = exmpp_stanza:get_id(Packet),
 			save_id(ID, NS, App);
 		_ -> 
+			Packet = OPacket,
 			ok
 	end,
 	case From of
@@ -96,9 +98,9 @@ handle_info({send, Packet, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
 			NewPacket = exmpp_xml:set_attribute(Packet, <<"from">>, JID),
 			exmpp_component:send_packet(XmppCom, NewPacket);
 		_ ->
-    		exmpp_component:send_packet(XmppCom, Packet)
-    end,
-	{noreply, State};
+    			exmpp_component:send_packet(XmppCom, Packet)
+    	end,
+	{noreply, State#state{iqId=IqID+1}};
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
 	lager:info("Connection Closed. Trying to Reconnect...~n", []),
