@@ -39,7 +39,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
-	timim:init(),
+	timem:init(),
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
 			 application:get_env(ecomponent, server),
