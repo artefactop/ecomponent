@@ -59,6 +59,6 @@ expired(D) ->
 
 remove_expired(D) ->
 	E = expired(D),
-	lists:foreach(fun(K) -> remove(K) end, E).
+	lists:map(fun(K) -> remove(K) end, E).
 
 tm({M, S, Mc}) -> M*1000000000000 + S*1000000 + Mc.
