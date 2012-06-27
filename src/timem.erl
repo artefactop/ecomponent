@@ -20,7 +20,13 @@ insert(K, V) ->
 		[] ->
 			RT = ets:insert(timem_tks, {T, [K]});
 		[{_, L}] ->
-			RT = ets:insert(timem_tks, {T, [K|L]});
+			case lists:any(fun(X) -> K == X end, L) of
+				true ->
+					LL = L;
+				_ -> 
+					LL = [K|L]
+			end,
+			RT = ets:insert(timem_tks, {T, LL});
 		_ ->
 			RT = false
 	end,
