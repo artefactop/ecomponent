@@ -172,8 +172,7 @@ save_id(Id, NS, App) ->
 	case mnesia:dirty_write(matching, N) of
 	{'EXIT', Reason} ->
 		lager:error("Error writing id ~s, processor ~p on mnesia, reason: ~p", [Id, App, Reason]);
-	_ -> 
-		 lager:info("Saved ID: ~p ~p ~n", [Id, N]),
+	_ ->
 		N
 	end.
 
