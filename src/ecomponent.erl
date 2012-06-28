@@ -20,7 +20,7 @@
 -export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, cleanup_expired/1]).
 
 %% gen_server callbacks
--export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
 				 terminate/2, code_change/3]).
 
 start_link() ->
@@ -47,9 +47,12 @@ init(_) ->
 			 application:get_env(ecomponent, whitelist),
 			 application:get_env(ecomponent, max_per_period),
 			 application:get_env(ecomponent, period_seconds),
-			 application:get_env(ecomponent, processors)).
+			 application:get_env(ecomponent, processors),
+			 application:get_env(ecomponent, max_tries),
+			 application:get_env(ecomponent, resend_period),
+			 application:get_env(ecomponent, request_timeout)).
 
-init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}) ->
+init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}, {_, MaxTries}, {_,ResendPeriod}, {_, RequestTimeout}) ->
 	lager:info("JID ~p", [JID]),
 	lager:info("Pass ~p", [Pass]),
 	lager:info("Server ~p", [Server]),
@@ -61,8 +64,8 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 	mod_monitor:init(WhiteList),
 	prepare_processors(Processors),
 	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
-	{ok, #state{xmppCom=XmppCom, jid=JID, iqId = 1, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors, maxTries=3, resendPeriod=100, requestTimeout=10}};
-init(_, _, _, _, _, _, _ , _) ->
+	{ok, #state{xmppCom=XmppCom, jid=JID, iqId = 1, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors, maxTries=MaxTries, resendPeriod=ResendPeriod, requestTimeout=RequestTimeout}};
+init(_, _, _, _, _, _, _ , _, _, _, _) ->
 	lager:error("Some param is undefined"),
 	{error, #state{}}.
 
