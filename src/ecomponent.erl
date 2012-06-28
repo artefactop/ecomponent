@@ -184,7 +184,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 save_id(_, _, _, undefined) -> ok;
 save_id(Id, NS, Packet, App) ->
-	N = #matching{id=Id, ns=NS, processor=App, tries=1, packet=Packet},
+	N = #matching{id=Id, ns=NS, processor=App, tries=0, packet=Packet},
 	save_id(N).
 	
 save_id(#matching{id=Id, processor=App}=N) ->
