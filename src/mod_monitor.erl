@@ -72,7 +72,7 @@ l_accept(Id, Max, Period) ->
 			D = to_mile(timer:now_diff(now(),Timestamp)),
 	if D > Period ->
 					NC = reset_counter(D, Counter, Max, Period),
-					lager:info("Monitor Counter Updated: from ~p to ~p", [Counter, NC]),
+					lager:debug("Monitor Counter Updated of id ~p: from ~p to ~p", [Id, Counter, NC]),
 		l_accept(N, NC, Max);
 			true ->
 					l_accept(N, Counter, Max)
