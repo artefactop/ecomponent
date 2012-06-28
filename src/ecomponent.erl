@@ -17,7 +17,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/3]).
+-export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, cleanup_expired/1]).
 
 %% gen_server callbacks
 -export([start_link/0, init/8, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -61,7 +61,7 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 	mod_monitor:init(WhiteList),
 	prepare_processors(Processors),
 	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
-	{ok, #state{xmppCom=XmppCom, jid=JID, iqId = 1, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors}};
+	{ok, #state{xmppCom=XmppCom, jid=JID, iqId = 1, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors, maxTries=3, resendPeriod=100, requestTimeout=10}};
 init(_, _, _, _, _, _, _ , _) ->
 	lager:error("Some param is undefined"),
 	{error, #state{}}.
@@ -81,26 +81,41 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 			{noreply, State}
 	end;
 
-handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID}=State) ->
+handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID, resendPeriod=RP, requestTimeout=RT}=State) ->
 	Kind = exmpp_iq:get_kind(OPacket),
 	From = exmpp_stanza:get_sender(OPacket),
+        case From of
+                undefined ->
+                        NewPacket = exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
+                _ ->
+			NewPacket = OPacket
+        end,
 	case Kind of
 		request -> 
-			Packet = exmpp_xml:set_attribute(OPacket, <<"id">>, erlang:integer_to_list(IqID)),
+			Packet = exmpp_xml:set_attribute(NewPacket, <<"id">>, erlang:integer_to_list(IqID)),
 		        ID = exmpp_stanza:get_id(Packet),
-			save_id(ID, NS, App);
+			save_id(ID, NS, Packet, App);
 		_ -> 
-			Packet = OPacket,
+			Packet = NewPacket
+	end,
+    	exmpp_component:send_packet(XmppCom, Packet),
+	case IqID rem RP of
+		0 ->
+			cleanup_expired(RT);
+		_ -> 
 			ok
 	end,
-	case From of
-		undefined ->
-			NewPacket = exmpp_xml:set_attribute(Packet, <<"from">>, JID),
-			exmpp_component:send_packet(XmppCom, NewPacket);
-		_ ->
-    			exmpp_component:send_packet(XmppCom, Packet)
-    	end,
 	{noreply, State#state{iqId=IqID+1}};
+
+handle_info({resend, #matching{tries=Tries, packet=P}=N}, #state{xmppCom = XmppCom, maxTries=Max}=State) ->
+	case Tries < Max of
+		true ->
+			save_id(N#matching{tries=Tries+1}),
+			exmpp_component:send_packet(XmppCom, P);
+		_ ->
+			lager:warning("Max tries exceeded for: ~p~n", [N])
+	end,
+	{noreply, State};
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
 	lager:info("Connection Closed. Trying to Reconnect...~n", []),
@@ -167,15 +182,38 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-save_id(_, _, undefined) -> ok;
-save_id(Id, NS, App) ->
-	N = #matching{id=Id, ns=NS, processor=App},
+save_id(_, _, _, undefined) -> ok;
+save_id(Id, NS, Packet, App) ->
+	N = #matching{id=Id, ns=NS, processor=App, tries=1, packet=Packet},
+	save_id(N).
+	
+save_id(#matching{id=Id, processor=App}=N) ->
 	case timem:insert(Id, N) of
 		true ->
 			N;
 		_ ->
                 lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
-	end.
+	end;
+save_id(_M) -> 
+	lager:warning("Not Match found for saving id: ~p~n", [_M]).
+
+cleanup_expired(D) ->
+	L = timem:remove_expired(D),
+	cleanup_expired(D, L).
+
+cleanup_expired(_D, []) ->
+	ok;
+cleanup_expired(D, [{_K, #matching{}=N }|T]) ->
+	resend(N),
+	cleanup_expired(D, T).
+	
+resend(#matching{}=N) ->
+        case whereis(?MODULE) of
+                undefined ->
+                        ok;
+                MPID when is_pid(MPID) ->
+                        MPID ! {resend, N}
+        end.
 
 get_processor(Id) ->
 	V = timem:remove(Id),
