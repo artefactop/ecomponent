@@ -101,6 +101,7 @@ handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID
 		_ -> 
 			Packet = NewPacket
 	end,
+	lager:debug("Sending packet ~p",[Packet]),
     	exmpp_component:send_packet(XmppCom, Packet),
 	case IqID rem RP of
 		0 ->
