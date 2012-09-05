@@ -247,10 +247,14 @@ p_p(_P) ->
         ok.
 
 get_processor_by_ns(NS) ->
-	 case ets:lookup(?NS_PROCESSOR, NS) of
-                [{_, {_T, _P}=Result}] -> Result;
-                _ -> []
-        end.
+	case ets:lookup(?NS_PROCESSOR, NS) of
+        [{_, {_T, _P}=Result}] -> Result;
+        _ ->
+        	case ets:lookup(?NS_PROCESSOR, default) of
+        		[{_, {_T, _P}=Result}] -> Result;
+        		_ -> []
+    		end
+    end.
 
 make_connection(JID, Pass, Server, Port) -> 
 	XmppCom = exmpp_component:start(),

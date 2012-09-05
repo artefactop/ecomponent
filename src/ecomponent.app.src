@@ -19,7 +19,7 @@
           {whitelist, ["node@domain"] },
           {max_per_period, 10 },
           {period_seconds, 6 },
-          {processors, [{'namespace', {'app','ns_processor'}}] }, 
+          {processors, [{'default', {'mod','processor'}}] }, 
           {max_tries, 3 }, %% tries to resend a packet
           {resend_period, 100 }, %% each 100 sent trie to resend packets
           {request_timeout, 10} %% expired packet time to resend

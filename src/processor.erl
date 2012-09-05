@@ -1,4 +1,4 @@
--module(ns_processor).
+-module(processor).
 
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
