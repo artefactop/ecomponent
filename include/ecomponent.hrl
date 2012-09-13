@@ -4,3 +4,4 @@
 -record(state, {xmppCom, jid, iqId, pass, server, port, whiteList, maxPerPeriod, periodSeconds, processors, maxTries, resendPeriod, requestTimeout}).
 -record(params, {type, from, to, ns, payload, iq}).
 -record(response, {ns, params}).
+-record(message, {type, from, xmlel}).

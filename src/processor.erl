@@ -5,7 +5,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([process_iq/4]).
+-export([process_iq/4, process_message/1]).
 
 process_iq("error", IQ, _, _) ->
 	lager:info("Get error IQ: ~p", [IQ]),
@@ -21,3 +21,5 @@ process_iq(_, IQ, _, _) ->
 	ecomponent:send_packet(Error),
 	ok.
 
+process_message(#message{}=Message) ->
+	lager:info("Message received: ~p", [Message]).

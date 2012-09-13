@@ -84,6 +84,15 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
 			{noreply, State}
 	end;
 
+handle_info(#received_packet{packet_type=message, type_attr=Type, raw_packet=Message, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+	case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
+		true ->
+			spawn(message_handler, pre_process_message, [Type, Message, From]),
+			{noreply, State};
+		_ ->
+			{noreply, State}
+	end;
+
 handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID, resendPeriod=RP, requestTimeout=RT}=State) ->
 	Kind = exmpp_iq:get_kind(OPacket),
 	From = exmpp_stanza:get_sender(OPacket),
@@ -196,7 +205,7 @@ save_id(#matching{id=Id, processor=App}=N) ->
 		true ->
 			N;
 		_ ->
-                lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
+            lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
 	end;
 save_id(_M) -> 
 	lager:warning("Not Match found for saving id: ~p~n", [_M]).
@@ -212,12 +221,12 @@ cleanup_expired(D, [{_K, #matching{}=N }|T]) ->
 	cleanup_expired(D, T).
 	
 resend(#matching{}=N) ->
-        case whereis(?MODULE) of
-                undefined ->
-                        ok;
-                MPID when is_pid(MPID) ->
-                        MPID ! {resend, N}
-        end.
+    case whereis(?MODULE) of
+            undefined ->
+                    ok;
+            MPID when is_pid(MPID) ->
+                    MPID ! {resend, N}
+    end.
 
 get_processor(Id) ->
 	V = timem:remove(Id),
@@ -240,11 +249,11 @@ prepare_processors(P) ->
 
 p_p([]) -> ok;
 p_p([{NS, {Type, Processor}}|T]) ->
-        ets:insert(?NS_PROCESSOR, {NS, {Type, Processor}}),
-        p_p(T);
+    ets:insert(?NS_PROCESSOR, {NS, {Type, Processor}}),
+    p_p(T);
 p_p(_P) ->
-        lager:warning("Unexpected NS/Processor Pair ~p~n",[_P]),
-        ok.
+    lager:warning("Unexpected NS/Processor Pair ~p~n",[_P]),
+    ok.
 
 get_processor_by_ns(NS) ->
 	case ets:lookup(?NS_PROCESSOR, NS) of
