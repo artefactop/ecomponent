@@ -12,3 +12,5 @@ ebin/
 test/ct_run.*
 test/variables-*
 rel/*node
+.project
+.settings
