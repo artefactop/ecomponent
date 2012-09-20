@@ -225,7 +225,7 @@ get_processor(Id) ->
 		{_, #matching{}=N} -> 
 			N;
 		_ ->
-			lager:warning("Found no matching processor for ~s",[Id]),
+			lager:warning("Found no matching processor for id ~s",[Id]),
 			undefined
 	end.
 
