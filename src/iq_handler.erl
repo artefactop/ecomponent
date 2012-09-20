@@ -21,6 +21,11 @@ process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
 	Result = exmpp_iq:result(IQ),
 	ecomponent:send(Result, ?NS_PING, undefined);
 
+process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO}) ->
+	Result = exmpp_iq:result(IQ, exmpp_xml:element(?NS_DISCO_INFO, 'query', [], [])),
+	lager:warning("***DISCO INFO REQUEST***: ~p~n", [IQ]),
+	ecomponent:send(Result, ?NS_DISCO_INFO, undefined);
+
 process_iq(#params{type="error"}=Params) ->
 	forward_response(Params);
 
