@@ -23,7 +23,7 @@
           {max_tries, 3 }, %% tries to resend a packet
           {resend_period, 100 }, %% each 100 sent trie to resend packets
           {request_timeout, 10}, %% expired packet time to resend
-          {access_list_set, [] }, %% a list of [{namespace, [domain1, domain2]}, ...]
-          {access_list_get, [] } %% a list of [{namespace, [domain1, domain2]}, ...]
+          {access_list_set, [] }, %% a list of [{namespace, [<<"domain1">>, <<"domain2">>]}, ...]
+          {access_list_get, [] } %% a list of [{namespace, [<<"domain1">>, <<"domain2">>]}, ...]
         ]}
  ]}.
