@@ -17,7 +17,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, cleanup_expired/1]).
+-export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, cleanup_expired/1, syslog/2]).
 
 %% gen_server callbacks
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -40,6 +40,9 @@ start_link() ->
 init(_) ->
 	lager:info("Loading Application eComponent", []),
 	timem:init(),
+	{_, Facility} = application:get_env(ecomponent, syslog_facility),
+	{_, Name} = application:get_env(ecomponent, syslog_name),
+	init_syslog(Facility, Name),
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
 			 application:get_env(ecomponent, server),
@@ -186,6 +189,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+init_syslog(Facility, Name) ->
+	lager:info("Facility: ~p",[Facility]),
+	syslog:open(Name, [cons, perror, pid], Facility).
+
 save_id(_, _, _, undefined) -> ok;
 save_id(Id, NS, Packet, App) ->
 	N = #matching{id=Id, ns=NS, processor=App, tries=0, packet=Packet},
@@ -303,3 +311,20 @@ send(Packet, NS, App) ->
 		MPID when is_pid(MPID) -> 
 		        MPID ! {send, Packet, NS, App}
 	end.
+
+%% Level: emerg, alert, crit, err, warning, notice, info, debug
+syslog(Level, Message) when is_binary(Message) ->
+	syslog(Level, erlang:binary_to_list(Message));
+syslog(Level, Message) when is_list(Message) ->
+	Priority = case Level of
+		emerg -> "EMERG ";
+		alert -> "ALERT ";
+		crit -> "CRIT ";
+		err -> "ERR ";
+		warning -> "WARNING ";
+		notice -> "NOTICE ";
+		info -> "INFO ";
+		debug -> "DEBUG ";
+		_ -> ""
+	end,
+	syslog:log(Level, Priority ++ Message).
