@@ -17,7 +17,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([prepare_id/1, unprepare_id/1, is_allowed/2, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, cleanup_expired/1]).
+-export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, cleanup_expired/1]).
 
 %% gen_server callbacks
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -39,7 +39,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init(_) ->
 	lager:info("Loading Application eComponent", []),
-	timem:init(),
+	timem:init(), 
 	init(application:get_env(ecomponent, jid),
 			 application:get_env(ecomponent, pass),
 			 application:get_env(ecomponent, server),
@@ -50,9 +50,12 @@ init(_) ->
 			 application:get_env(ecomponent, processors),
 			 application:get_env(ecomponent, max_tries),
 			 application:get_env(ecomponent, resend_period),
-			 application:get_env(ecomponent, request_timeout)).
+			 application:get_env(ecomponent, request_timeout),
+			 application:get_env(ecomponent, access_list_set),
+			 application:get_env(ecomponent, access_list_get)
+			 ).
 
-init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}, {_, MaxTries}, {_,ResendPeriod}, {_, RequestTimeout}) ->
+init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}, {_, MaxTries}, {_,ResendPeriod}, {_, RequestTimeout}, {_, AccessListSet}, {_, AccessListGet}) ->
 	lager:info("JID ~p", [JID]),
 	lager:info("Pass ~p", [Pass]),
 	lager:info("Server ~p", [Server]),
@@ -64,8 +67,23 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 	mod_monitor:init(WhiteList),
 	prepare_processors(Processors),
 	{_, XmppCom} = make_connection(JID, Pass, Server, Port),
-	{ok, #state{xmppCom=XmppCom, jid=JID, iqId = 1, pass=Pass, server=Server, port=Port, whiteList=WhiteList, maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, processors=Processors, maxTries=MaxTries, resendPeriod=ResendPeriod, requestTimeout=RequestTimeout}};
-init(_, _, _, _, _, _, _ , _, _, _, _) ->
+	{ok, #state{xmppCom=XmppCom,
+		jid=JID,
+		iqId = 1,
+		pass=Pass,
+		server=Server,
+		port=Port,
+		whiteList=WhiteList,
+		maxPerPeriod=MaxPerPeriod,
+		periodSeconds=PeriodSeconds,
+		processors=Processors,
+		maxTries=MaxTries,
+		resendPeriod=ResendPeriod,
+		requestTimeout=RequestTimeout,
+		accessListSet=AccessListSet,
+		accessListGet=AccessListGet}
+    };
+init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 	lager:error("Some param is undefined"),
 	{error, #state{}}.
 
@@ -161,7 +179,13 @@ handle_cast(_Msg, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(Info,_From, _State) ->
+handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
+	lager:info("Received Call: ~p~n", [Info]),
+	{reply, is_allowed(set, NS, Jid, State), State};
+handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
+	lager:info("Received Call: ~p~n", [Info]),
+	{reply, is_allowed(get, NS, Jid, State), State};
+handle_call(Info, _From, _State) ->
 	lager:info("Received Call: ~p~n", [Info]),
 	{reply, ok, _State}.
 
@@ -285,12 +309,6 @@ unprepare_id([$x|T]) -> [$<|unprepare_id(T)];
 unprepare_id([$X|T]) -> [$>|unprepare_id(T)];
 unprepare_id([H|T]) -> [H|unprepare_id(T)].
 
-is_allowed(_, []) -> true;
-is_allowed({_,D,_}, WhiteDomain) ->
-	is_allowed(D, WhiteDomain);
-is_allowed(Domain, WhiteDomain) -> 
-	lists:any(fun(S) -> S == Domain end, WhiteDomain).
-
 send(Packet, App) ->
 	Payload = exmpp_iq:get_payload(Packet),
 	NS = exmpp_xml:get_ns_as_atom(Payload),
@@ -303,3 +321,8 @@ send(Packet, NS, App) ->
 		MPID when is_pid(MPID) -> 
 		        MPID ! {send, Packet, NS, App}
 	end.
+
+is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=Ws}) ->
+	lists:member(Domain, proplists:get_value(NS, Ws));
+is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Wg}) ->
+	lists:member(Domain, proplists:get_value(NS, Wg)).
