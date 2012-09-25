@@ -32,7 +32,7 @@ process_iq(#params{type="result"}=Params) ->
 	forward_response(Params);
 
 process_iq(#params{type="set", ns=NS, iq=IQ, from=From}=Params) ->
-    case gen_server:cast(ecomponent, {access_list_set, NS, From}) of
+    case gen_server:call(ecomponent, {access_list_set, NS, From}) of
         true ->
             forward_ns(Params);
         false ->
@@ -41,7 +41,7 @@ process_iq(#params{type="set", ns=NS, iq=IQ, from=From}=Params) ->
     end;
 
 process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
-    case gen_server:cast(ecomponent, {access_list_set, NS, From}) of
+    case gen_server:call(ecomponent, {access_list_set, NS, From}) of
         true ->
             forward_ns(Params);
         false ->
