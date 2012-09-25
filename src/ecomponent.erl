@@ -55,7 +55,7 @@ init(_) ->
 			 application:get_env(ecomponent, access_list_get)
 			 ).
 
-init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}, {_, MaxTries}, {_,ResendPeriod}, {_, RequestTimeout}, {_, AccessListSet},  {_, AccessListGet}) ->
+init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {_,PeriodSeconds}, {_,Processors}, {_, MaxTries}, {_,ResendPeriod}, {_, RequestTimeout}, {_, AccessListSet}, {_, AccessListGet}) ->
 	lager:info("JID ~p", [JID]),
 	lager:info("Pass ~p", [Pass]),
 	lager:info("Server ~p", [Server]),
@@ -83,7 +83,7 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 		access_list_set=AccessListSet,
 		access_list_get=AccessListGet}
     };
-init(_, _, _, _, _, _, _ , _, _, _, _) ->
+init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 	lager:error("Some param is undefined"),
 	{error, #state{}}.
 
@@ -179,10 +179,10 @@ handle_cast(_Msg, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({access_list_set, NS, Jid}, _From, State) ->
+handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
 	lager:info("Received Call: ~p~n", [Info]),
 	{reply, is_allowed(set, NS, Jid, State), State};
-handle_call({access_list_get, NS, Jid}, _From, State) ->
+handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
 	lager:info("Received Call: ~p~n", [Info]),
 	{reply, is_allowed(get, NS, Jid, State), State};
 handle_call(Info, _From, _State) ->
@@ -322,7 +322,7 @@ send(Packet, NS, App) ->
 		        MPID ! {send, Packet, NS, App}
 	end.
 
-is_allowed(set, NS, {_, Domain, _}, #state{whiteListSet=Ws}) ->
+is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=Ws}) ->
 	lists:member(Domain, proplists:get_value(NS, Ws));
-is_allowed(get, NS, {_, Domain, _}, #state{whiteListGet=Wg}) ->
+is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Wg}) ->
 	lists:member(Domain, proplists:get_value(NS, Wg)).
