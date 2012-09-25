@@ -80,8 +80,8 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
 		maxTries=MaxTries,
 		resendPeriod=ResendPeriod,
 		requestTimeout=RequestTimeout,
-		access_list_set=AccessListSet,
-		access_list_get=AccessListGet}
+		accessListSet=AccessListSet,
+		accessListGet=AccessListGet}
     };
 init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 	lager:error("Some param is undefined"),
