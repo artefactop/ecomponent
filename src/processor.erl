@@ -8,16 +8,16 @@
 -export([process_iq/4]).
 
 process_iq("error", IQ, _, _) ->
-	lager:info("Get error IQ: ~p", [IQ]),
-	ok;
+    lager:info("Get error IQ: ~p", [IQ]),
+    ok;
 
 process_iq("result", IQ, _, _) ->
-	lager:info("Get result IQ: ~p", [IQ]),
-	ok;
+    lager:info("Get result IQ: ~p", [IQ]),
+    ok;
 
 process_iq(_, IQ, _, _) ->
-	lager:info("Unknown Request: ~p~n", [IQ]),
-	Error = exmpp_iq:error(IQ, 'service-unavailable'),
-	ecomponent:send_packet(Error),
-	ok.
+    lager:info("Unknown Request: ~p~n", [IQ]),
+    Error = exmpp_iq:error(IQ, 'service-unavailable'),
+    ecomponent:send_packet(Error),
+    ok.
 
