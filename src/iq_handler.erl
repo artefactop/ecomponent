@@ -23,7 +23,6 @@ process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
 
 process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO}) ->
 	Result = exmpp_iq:result(IQ, exmpp_xml:element(?NS_DISCO_INFO, 'query', [], [])),
-	lager:warning("***DISCO INFO REQUEST***: ~p~n", [IQ]),
 	ecomponent:send(Result, ?NS_DISCO_INFO, undefined);
 
 process_iq(#params{type="error"}=Params) ->
@@ -32,11 +31,23 @@ process_iq(#params{type="error"}=Params) ->
 process_iq(#params{type="result"}=Params) ->
 	forward_response(Params);
 
-process_iq(#params{type="set"}=Params) ->
-        forward_ns(Params);
+process_iq(#params{type="set", ns=NS, iq=IQ, from=From}=Params) ->
+    case gen_server:cast(ecomponent, {access_list_set, NS, From}) of
+        true ->
+            forward_ns(Params);
+        false ->
+            ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
+            ecomponent:call_send(exmpp_iq:error(IQ, 'bad-request'), NS, undefined)
+    end;
 
-process_iq(#params{type="get"}=Params) ->
-        forward_ns(Params);
+process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
+    case gen_server:cast(ecomponent, {access_list_set, NS, From}) of
+        true ->
+            forward_ns(Params);
+        false ->
+            ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
+            ecomponent:call_send(exmpp_iq:error(IQ, 'bad-request'), NS, undefined)
+    end;
 
 process_iq(P) ->
 	lager:info("Unknown Request: ~p~n", [P]).

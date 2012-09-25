@@ -1,17 +1,20 @@
 {application, ecomponent,
  [
   {description, "Abstract xmpp component"},
-  {vsn, "1"},
+  {vsn, "0.2"},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib,
                   exmpp,
                   lager,
-                  mnesia
+                  mnesia,
+                  syslog
                  ]},
   {mod, { ecomponent_app, []}},
   {env, [
+          {syslog_facility, local7},
+          {syslog_name, "ecomponent"},
           {jid, "ecomponent.localhost" },
           {server, "localhost" },
           {port, 8888 },
