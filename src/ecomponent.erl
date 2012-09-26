@@ -332,12 +332,12 @@ send(Packet, NS, App) ->
     end.
 
 is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
-    is_allowed(NS, Domain, Ag);
+    is_allowed(NS, Domain, As);
 is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
     is_allowed(NS, Domain, Ag).
 
 is_allowed(NS, Domain, PList) ->
-    case proplists:get_value(NS, Plist) of
+    case proplists:get_value(NS, PList) of
         undefined ->
             false;
         List ->
