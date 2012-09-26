@@ -66,6 +66,8 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
     lager:info("MaxPerPeriod ~p", [MaxPerPeriod]),
     lager:info("PeriodSeconds ~p", [PeriodSeconds]),
     lager:info("Processors ~p", [Processors]),
+    lager:info("AccessListSet ~p", [AccessListSet]),
+    lager:info("AccessListGet ~p", [AccessListGet]),
     mod_monitor:init(WhiteList),
     prepare_processors(Processors),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
@@ -329,10 +331,18 @@ send(Packet, NS, App) ->
                 MPID ! {send, Packet, NS, App}
     end.
 
-is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=Ws}) ->
-    lists:member(Domain, proplists:get_value(NS, Ws));
-is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Wg}) ->
-    lists:member(Domain, proplists:get_value(NS, Wg)).
+is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
+    is_allowed(NS, Domain, Ag);
+is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
+    is_allowed(NS, Domain, Ag).
+
+is_allowed(NS, Domain, PList) ->
+    case proplists:get_value(NS, Plist) ->
+        undefined ->
+            false;
+        List ->
+            lists:member(Domain, List)
+    end.
 
 %% Level: emerg, alert, crit, err, warning, notice, info, debug
 syslog(Level, Message) when is_binary(Message) ->
