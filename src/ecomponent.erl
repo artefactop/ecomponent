@@ -339,7 +339,7 @@ is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
 is_allowed(NS, Domain, PList) ->
     case proplists:get_value(NS, PList) of
         undefined ->
-            false;
+            true;
         List ->
             lists:member(Domain, List)
     end.
