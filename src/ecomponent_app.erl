@@ -26,15 +26,15 @@
 %% @end
 %%--------------------------------------------------------------------
 start() ->
-	application:start(ecomponent).
+    application:start(ecomponent).
 
 start(_StartType, _StartArgs) ->
     case ecomponent_sup:start_link() of
-	{ok, Pid} ->
-	    {ok, Pid};
-	Error ->
-	    Error
-    	end.
+        {ok, Pid} ->
+            {ok, Pid};
+        Error ->
+            Error
+    end.
 
 %%--------------------------------------------------------------------
 %% @private

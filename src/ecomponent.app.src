@@ -1,17 +1,20 @@
 {application, ecomponent,
  [
   {description, "Abstract xmpp component"},
-  {vsn, "1"},
+  {vsn, "0.2"},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib,
-		  exmpp,
+                  exmpp,
                   lager,
-		  mnesia
+                  mnesia,
+                  syslog
                  ]},
   {mod, { ecomponent_app, []}},
   {env, [
+          {syslog_facility, local7},
+          {syslog_name, "ecomponent"},
           {jid, "ecomponent.localhost" },
           {server, "localhost" },
           {port, 8888 },
@@ -19,9 +22,11 @@
           {whitelist, ["node@domain"] },
           {max_per_period, 10 },
           {period_seconds, 6 },
-          {processors, [{'namespace', {'app','ns_processor'}}] }, 
+          {processors, [{'default', {'mod','processor'}}] }, 
           {max_tries, 3 }, %% tries to resend a packet
           {resend_period, 100 }, %% each 100 sent trie to resend packets
-          {request_timeout, 10} %% expired packet time to resend
+          {request_timeout, 10}, %% expired packet time to resend
+          {access_list_set, [] }, %% a list of [{namespace, [<<"domain1">>, <<"domain2">>]}, ...]
+          {access_list_get, [] } %% a list of [{namespace, [<<"domain1">>, <<"domain2">>]}, ...]
         ]}
  ]}.
