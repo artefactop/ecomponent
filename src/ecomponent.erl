@@ -1,15 +1,11 @@
 %%%-------------------------------------------------------------------
 %%% File        : ecomponent.erl
 %%% Author      : Jose Luis Navarro <pepe@yuilop.com>
+%%%               Manuel Rubio <manuel@yuilop.com>
 %%% Description : ecomponent Service - External Component
-%%% Provides:
-%%%
-%%elf
-
-%%% Created : 07 Jun 2012 by Jose Luis Navarro <pepe@yuilop.com>
 %%%-------------------------------------------------------------------
-
 -module(ecomponent).
+
 -behaviour(gen_server).
 
 -include_lib("exmpp/include/exmpp.hrl").
@@ -89,7 +85,7 @@ init([]) ->
 -spec configure() -> #state{}.
 
 configure() ->
-    Conf = confetti:fetch(ecomponent),
+    Conf = confetti:fetch(ecomponent_conf),
     Facility = proplists:get_value(syslog_facility, Conf, local7),
     Name = proplists:get_value(syslog_name, Conf, "ecomponent"),
     init_syslog(Facility, Name),
@@ -104,7 +100,7 @@ configure() ->
 
     mod_monitor:init(WhiteList),
     prepare_processors(Processors),
-    {ok, XmppCom} = make_connection(JID, Pass, Server, Port),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     {ok, #state{
         xmppCom = XmppCom,
         jid = JID,
@@ -169,13 +165,13 @@ handle_info({resend, #matching{tries=Tries}=N}, #state{maxTries=Max}=State) when
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
     lager:info("Connection Closed. Trying to Reconnect...~n", []),
-    {ok, XmppCom} = make_connection(JID, Pass, Server, Port),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected.~n", []),
     {noreply, State#state{xmppCom=XmppCom}};
 
 handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
     lager:info("Connection Closed. Trying to Reconnect...~n", []),
-    {ok, XmppCom} = make_connection(JID, Pass, Server, Port),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected.~n", []),
     {noreply, State#state{xmppCom=XmppCom}};
 
@@ -210,9 +206,46 @@ handle_cast(_Msg, State) ->
 handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
     lager:info("Received Call: ~p~n", [Info]),
     {reply, is_allowed(set, NS, Jid, State), State};
+
 handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
     lager:info("Received Call: ~p~n", [Info]),
     {reply, is_allowed(get, NS, Jid, State), State};
+
+handle_call(reconnect, _From, State) ->
+    exmpp_component:stop(State#state.xmppCom),
+    timer:sleep(250),
+    {_, XmppCom} = make_connection(
+        State#state.jid, State#state.pass,
+        State#state.server, State#state.port
+    ),
+    {reply, ok, State#state{xmppCom=XmppCom}};
+
+handle_call({change_config, syslog, {Facility, Name}}, _From, State) ->
+    init_syslog(if
+        is_number(Facility) -> Facility;
+        true -> list_to_atom(Facility)
+    end, Name),
+    {reply, ok, State};
+
+handle_call({change_config, Key, Value}, _From, State) ->
+    case Key of
+        maxPerPeriod -> {reply, ok, State#state{maxPerPeriod=Value}};
+        periodSeconds -> {reply, ok, State#state{periodSeconds=Value}};
+        maxTries -> {reply, ok, State#state{maxTries=Value}};
+        resendPeriod -> {reply, ok, State#state{resendPeriod=Value}};
+        requestTimeout -> {reply, ok, State#state{requestTimeout=Value}};
+        _ -> {reply, error, State}
+    end;
+
+handle_call({set_xmpp_conf, JID, Pass, Server, Port}, _From, State) ->
+    exmpp_component:stop(State#state.xmppCom),
+    timer:sleep(250),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
+    {reply, ok, State#state{jid=JID, pass=Pass, server=Server, port=Port, xmppCom=XmppCom}};
+
+handle_call(get_xmpp_conf, _From, State) ->
+    {reply, [State#state.jid, State#state.pass, State#state.server, State#state.port], State};
+        
 handle_call(Info, _From, _State) ->
     lager:info("Received Call: ~p~n", [Info]),
     {reply, ok, _State}.
@@ -330,13 +363,15 @@ make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
     lager:info("Connecting: ~p Tries Left~n",[Tries]),
     exmpp_component:auth(XmppCom, JID, Pass),
     try exmpp_component:connect(XmppCom, Server, Port) of
-        R -> exmpp_component:handshake(XmppCom),
-        lager:info("Connected.~n",[]),
-        {R, XmppCom}
+        R -> 
+            exmpp_component:handshake(XmppCom),
+            lager:info("Connected.~n",[]),
+            {R, XmppCom}
     catch
-        Exception -> lager:warning("Exception: ~p~n",[Exception]),
-        timer:sleep((20-Tries) * 200),
-        make_connection(XmppCom, JID, Pass, Server, Port, Tries-1)
+        Exception ->
+            lager:warning("Exception: ~p~n",[Exception]),
+            timer:sleep((20-Tries) * 200),
+            make_connection(XmppCom, JID, Pass, Server, Port, Tries-1)
     end.
 
 prepare_id([]) -> [];

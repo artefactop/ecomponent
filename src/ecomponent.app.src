@@ -9,7 +9,8 @@
                   exmpp,
                   lager,
                   mnesia,
-                  syslog
+                  syslog,
+                  confetti
                  ]},
   {mod, { ecomponent_app, []}},
   {env, []}

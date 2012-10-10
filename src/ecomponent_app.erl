@@ -29,10 +29,8 @@ start() ->
     application:start(ecomponent).
 
 start(_StartType, _StartArgs) ->
-    {ok, App} = application:get_env(ecomponent, app),
-    Path = code:priv_dir(App) ++ "/conf",
-    {ok, _ProvPid} = confetti:use(ecomponent, [
-        {location, {"ecomponent.conf", Path}}
+    {ok, _ProvPid} = confetti:use(ecomponent_conf, [
+        {location, {"ecomponent.conf", "conf"}}
     ]),
     ecomponent_sup:start_link().
 
