@@ -29,10 +29,12 @@ start() ->
     application:start(ecomponent).
 
 start(_StartType, _StartArgs) ->
-    {ok, _ProvPid} = confetti:use(ecomponent_conf, [
-        {location, {"ecomponent.conf", "conf"}}
-    ]),
-    ecomponent_sup:start_link().
+    case ecomponent_sup:start_link() of
+        {ok, Pid} ->
+            {ok, Pid};
+        Error ->
+            Error
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
