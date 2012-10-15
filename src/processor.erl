@@ -7,6 +7,8 @@
 %% API
 -export([process_iq/1]).
 
+-spec process_iq( Params::#params{} ) -> ok.
+
 process_iq(#params{type="error", iq=IQ}) ->
     lager:info("Get error IQ: ~p", [IQ]),
     ok;

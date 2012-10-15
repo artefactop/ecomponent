@@ -7,6 +7,8 @@
 %% API
 -export([pre_process_iq/3]).
 
+-spec pre_process_iq( (get | set | error | result), IQ::term(), From::ecomponent:jid()) -> ok.
+
 pre_process_iq(Type, IQ, From) ->
     Payload = exmpp_iq:get_payload(IQ),
     case Payload of
@@ -16,6 +18,8 @@ pre_process_iq(Type, IQ, From) ->
             NS = exmpp_xml:get_ns_as_atom(Payload)
     end,
     process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
+
+-spec process_iq( Params::#params{} ) -> ok.
 
 process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
     Result = exmpp_iq:result(IQ),
@@ -52,6 +56,8 @@ process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
 process_iq(P) ->
     lager:info("Unknown Request: ~p~n", [P]).
 
+-spec forward_ns( Params::#params{} ) -> ok.
+
 forward_ns(#params{ns=NS}=Params) ->
     case ecomponent:get_processor_by_ns(NS) of
         undefined -> 
@@ -69,6 +75,8 @@ forward_ns(#params{ns=NS}=Params) ->
         Proc -> 
             lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Params])
     end.
+
+-spec forward_response( Params::#params{} ) -> ok.
 
 forward_response(#params{iq=IQ}=Params) ->
     ID = exmpp_stanza:get_id(IQ),

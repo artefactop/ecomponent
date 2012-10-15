@@ -40,7 +40,7 @@ prepare_whitelist(L) ->
     [ ets:insert(?WLIST_TABLE, {H,allowed}) || H <- L ],
     ok.
 
--spec is_white( K :: binary() ) -> true | false.
+-spec is_white( K :: binary() ) -> boolean().
 
 is_white(K) ->
     case ets:lookup(?WLIST_TABLE, K) of
@@ -48,7 +48,7 @@ is_white(K) ->
         _Any -> false
     end.
 
--spec accept( Id :: binary(), Max :: integer(), Period :: integer() ) -> true | false.
+-spec accept( Id :: string(), Max :: integer(), Period :: integer() ) -> boolean().
 
 accept(Id, Max, Period) ->
     case is_white(Id) of

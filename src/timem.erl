@@ -2,9 +2,14 @@
 
 -export([init/0, insert/2, remove/1, tm/1, expired/1, remove_expired/1]).
 
+-spec init() -> ok.
+
 init() ->
     prepare_table(timem_kv, [named_table, public] ),
-    prepare_table(timem_tks, [named_table, ordered_set, public]).
+    prepare_table(timem_tks, [named_table, ordered_set, public]),
+    ok.
+
+-spec prepare_table(Name::atom(), Props::term()) -> ok.
 
 prepare_table(Name, Props) ->
         case ets:info(Name) of
@@ -12,7 +17,10 @@ prepare_table(Name, Props) ->
                         ets:new(Name, Props);
                 _ ->
                         ets:delete_all_objects(Name)
-        end.
+        end,
+        ok.
+
+-spec insert(K::term(), V::term()) -> boolean().
     
 insert(K, V) ->
     T = tm(now()),
@@ -37,6 +45,8 @@ insert(K, V) ->
             false
     end.
 
+-spec remove(K::term()) -> {K::term(), V::term()} | undefined.
+
 remove(K) ->
     case ets:lookup(timem_kv, K) of
         [{K, {V, T}}] ->
@@ -59,12 +69,20 @@ remove(K) ->
             undefined
     end.
 
+-spec expired(D::integer()) -> ok.
+
 expired(D) ->
     T = tm(now()) - D*1000000,
-    lists:map(fun([X]) -> X end, ets:select(timem_tks, [{{'$1','$2'},[{'<','$1',T}],['$2']}])).
+    [ X || X <- ets:select(timem_tks, [{{'$1','$2'},[{'<','$1',T}],['$2']}]) ],
+    ok.
+
+-spec remove_expired(D::integer()) -> ok.
 
 remove_expired(D) ->
-    E = expired(D),
-    lists:map(fun(K) -> remove(K) end, E).
+    [ remove(K) || K <- expired(D) ],
+    ok.
+
+-spec tm( T::erlang:timestamp() ) -> integer().
 
 tm({M, S, Mc}) -> M*1000000000000 + S*1000000 + Mc.
+
