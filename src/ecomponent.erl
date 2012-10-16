@@ -70,6 +70,7 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
     lager:info("AccessListGet ~p", [AccessListGet]),
     mod_monitor:init(WhiteList),
     prepare_processors(Processors),
+    init_metrics(),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     {ok, #state{xmppCom=XmppCom,
         jid=JID,
@@ -98,6 +99,7 @@ init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    folsom_metrics:notify({"iq/min", 1}),
     case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
         true ->
             spawn(iq_handler, pre_process_iq, [Type, IQ, From]),
@@ -120,7 +122,9 @@ handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID
             Packet = exmpp_xml:set_attribute(NewPacket, <<"id">>, erlang:integer_to_list(IqID)),
                 ID = exmpp_stanza:get_id(Packet),
             save_id(ID, NS, Packet, App);
-        _ -> 
+        _ ->
+            %%TODO metric
+            metrics:
             Packet = NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
@@ -215,6 +219,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+init_metrics() ->
+    metrics:init([]).
+
 init_syslog(Facility, Name) ->
     lager:info("Facility: ~p",[Facility]),
     syslog:open(Name, [cons, perror, pid], Facility).
@@ -229,7 +236,7 @@ save_id(#matching{id=Id, processor=App}=N) ->
         true ->
             N;
         _ ->
-                lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
+            lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
     end;
 save_id(_M) -> 
     lager:warning("Not Match found for saving id: ~p~n", [_M]).
@@ -245,12 +252,12 @@ cleanup_expired(D, [{_K, #matching{}=N }|T]) ->
     cleanup_expired(D, T).
     
 resend(#matching{}=N) ->
-        case whereis(?MODULE) of
-                undefined ->
-                        ok;
-                MPID when is_pid(MPID) ->
-                        MPID ! {resend, N}
-        end.
+    case whereis(?MODULE) of
+        undefined ->
+            ok;
+        MPID when is_pid(MPID) ->
+            MPID ! {resend, N}
+    end.
 
 get_processor(Id) ->
     V = timem:remove(Id),
@@ -264,10 +271,10 @@ get_processor(Id) ->
 
 prepare_processors(P) ->
     case ets:info(?NS_PROCESSOR) of
-            undefined ->
-                    ets:new(?NS_PROCESSOR, [named_table, public]);
-            _ ->
-                    ets:delete_all_objects(?NS_PROCESSOR)
+        undefined ->
+            ets:new(?NS_PROCESSOR, [named_table, public]);
+        _ ->
+            ets:delete_all_objects(?NS_PROCESSOR)
     end,
     p_p(P).
 
@@ -328,7 +335,7 @@ send(Packet, NS, App) ->
         undefined -> 
             ok;
         MPID when is_pid(MPID) -> 
-                MPID ! {send, Packet, NS, App}
+            MPID ! {send, Packet, NS, App}
     end.
 
 is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
