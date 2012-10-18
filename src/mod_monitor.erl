@@ -15,7 +15,7 @@
 -define(WLIST_TABLE, mmwl).
 
 -record(monitor, {
-    id :: binary(),
+    id :: string(),
     counter = 0 :: integer(),
     timestamp = now() :: erlang:timestamp()
 }).
@@ -40,7 +40,7 @@ prepare_whitelist(L) ->
     [ ets:insert(?WLIST_TABLE, {H,allowed}) || H <- L ],
     ok.
 
--spec is_white( K :: binary() ) -> boolean().
+-spec is_white( K :: string() ) -> boolean().
 
 is_white(K) ->
     case ets:lookup(?WLIST_TABLE, K) of
@@ -60,11 +60,11 @@ accept(Id, Max, Period) ->
             D = (timer:now_diff(now(), N#monitor.timestamp)) / 1000000,
             if 
                 D > Period ->
-                    NC = case Counter - Max * (D div Period + 1) of
+                    NC = case Counter - Max * trunc(D / Period + 1) of
                         C when C < 0 -> 0;
                         C -> C
                     end,
-                    lager:debug("Monitor Counter Updated of id ~p: from ~p to ~p", [Id, Counter, NC]),
+                    lager:debug("monitor updated id=<~p>; from ~p to ~p", [Id, Counter, NC]),
                     mnesia:dirty_write(monitor, N#monitor{counter=NC, timestamp=now()}),
                     NC =< Max;
                 true ->
@@ -73,7 +73,7 @@ accept(Id, Max, Period) ->
             end
     end.
 
--spec get_node( Id :: binary() ) -> binary().
+-spec get_node( Id :: string() ) -> #monitor{}.
 
 get_node(Id) ->
     case catch mnesia:dirty_read(monitor, Id) of
@@ -85,10 +85,10 @@ get_node(Id) ->
             N
     end.
 
--spec add_node( Node_id :: binary() ) -> #monitor{}.
+-spec add_node( Id :: string() ) -> #monitor{}.
 
-add_node(Node_id) ->
-    N = #monitor{id=Node_id, counter=0, timestamp = now()},
+add_node(Id) ->
+    N = #monitor{id=Id, counter=0, timestamp=now()},
     mnesia:dirty_write(monitor, N),
     N.
 

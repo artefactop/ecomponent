@@ -20,6 +20,6 @@ process_iq(#params{type="result", iq=IQ}) ->
 process_iq(#params{iq=IQ}) ->
     lager:info("Unknown Request: ~p~n", [IQ]),
     Error = exmpp_iq:error(IQ, 'service-unavailable'),
-    ecomponent:send_packet(Error),
+    ecomponent:send(Error, ecomponent),
     ok.
 

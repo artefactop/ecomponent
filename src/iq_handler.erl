@@ -7,17 +7,16 @@
 %% API
 -export([pre_process_iq/3]).
 
--spec pre_process_iq( (get | set | error | result), IQ::term(), From::ecomponent:jid()) -> ok.
+-spec pre_process_iq( undefined | string(), IQ::term(), From::ecomponent:jid()) -> ok.
 
 pre_process_iq(Type, IQ, From) ->
     Payload = exmpp_iq:get_payload(IQ),
-    case Payload of
+    process_iq(#params{from=From, ns=case Payload of
         undefined ->
-            NS = undefined;
+            undefined;
         _ ->
-            NS = exmpp_xml:get_ns_as_atom(Payload)
-    end,
-    process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
+            exmpp_xml:get_ns_as_atom(Payload)
+    end, type=Type, iq=IQ, payload=Payload}).
 
 -spec process_iq( Params::#params{} ) -> ok.
 
@@ -60,8 +59,6 @@ process_iq(P) ->
 
 forward_ns(#params{ns=NS}=Params) ->
     case ecomponent:get_processor_by_ns(NS) of
-        undefined -> 
-            spawn(?MODULE, handle_unavailable, [Params]);
         {mod, P} ->
             spawn(P, process_iq, [Params]);
         {app, Name} ->
@@ -81,22 +78,10 @@ forward_ns(#params{ns=NS}=Params) ->
 forward_response(#params{iq=IQ}=Params) ->
     ID = exmpp_stanza:get_id(IQ),
     case ecomponent:get_processor(ID) of
-        undefined -> 
-            ok;
-        #matching{processor=undefined} ->
-            ok;
         #matching{ns=NS, processor=App} ->
-            PID = whereis(App),
-            case is_pid(PID) of 
-                true ->
-                    PID ! #response{ns=NS, params=Params},
-                    ok;
-                _ -> ok
-            end;
-        _ -> 
+            App ! #response{ns=NS, params=Params},
+            ok;
+        _ ->
             ok
-    end;
-
-forward_response(_) -> 
-    ok.
+    end.
 

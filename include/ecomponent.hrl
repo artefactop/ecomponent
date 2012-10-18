@@ -2,23 +2,23 @@
 
 -record(matching, {
     id :: string(),
-    ns :: string(),
+    ns :: atom(),
     processor :: atom(),
     tries :: integer(),
     packet :: term()
 }).
 
 -record(params, {
-    type,
-    from,
-    to,
-    ns :: string(),
-    payload,
-    iq
+    type :: undefined | string(),
+    from :: ecomponent:jid(),
+    to :: ecomponent:jid(),
+    ns :: atom(),
+    payload :: term(),
+    iq :: term()
 }).
 
 -record(response, {
-    ns :: string(),
-    params
+    ns :: atom(),
+    params :: #params{}
 }).
 

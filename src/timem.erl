@@ -12,21 +12,21 @@ init() ->
 -spec prepare_table(Name::atom(), Props::term()) -> ok.
 
 prepare_table(Name, Props) ->
-        case ets:info(Name) of
-                undefined ->
-                        ets:new(Name, Props);
-                _ ->
-                        ets:delete_all_objects(Name)
-        end,
-        ok.
+    case ets:info(Name) of
+        undefined ->
+            ets:new(Name, Props);
+        _ ->
+            ets:delete_all_objects(Name)
+    end,
+    ok.
 
--spec insert(K::term(), V::term()) -> boolean().
+-spec insert(K::binary(), V::term()) -> boolean().
     
 insert(K, V) ->
     T = tm(now()),
-    case ets:lookup(timem_tks, T) of
+    RT = case ets:lookup(timem_tks, T) of
         [] ->
-            RT = ets:insert(timem_tks, {T, [K]});
+            ets:insert(timem_tks, {T, [K]});
         [{_, L}] ->
             case lists:any(fun(X) -> K == X end, L) of
                 true ->
@@ -34,9 +34,9 @@ insert(K, V) ->
                 _ -> 
                     LL = [K|L]
             end,
-            RT = ets:insert(timem_tks, {T, LL});
+            ets:insert(timem_tks, {T, LL});
         _ ->
-            RT = false
+            false
     end,
     case RT of
         true ->
@@ -45,7 +45,7 @@ insert(K, V) ->
             false
     end.
 
--spec remove(K::term()) -> {K::term(), V::term()} | undefined.
+-spec remove(K::binary()) -> {K::binary(), V::term()} | undefined.
 
 remove(K) ->
     case ets:lookup(timem_kv, K) of
@@ -69,18 +69,16 @@ remove(K) ->
             undefined
     end.
 
--spec expired(D::integer()) -> ok.
+-spec expired(D::integer()) -> list(binary()).
 
 expired(D) ->
     T = tm(now()) - D*1000000,
-    [ X || X <- ets:select(timem_tks, [{{'$1','$2'},[{'<','$1',T}],['$2']}]) ],
-    ok.
+    [ X || [X] <- ets:select(timem_tks, [{{'$1','$2'},[{'<','$1',T}],['$2']}]) ].
 
--spec remove_expired(D::integer()) -> ok.
+-spec remove_expired(D::integer()) -> list({K::binary(), V::term()}).
 
 remove_expired(D) ->
-    [ remove(K) || K <- expired(D) ],
-    ok.
+    [ remove(K) || K <- expired(D) ].
 
 -spec tm( T::erlang:timestamp() ) -> integer().
 

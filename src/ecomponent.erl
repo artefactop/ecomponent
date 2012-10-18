@@ -66,24 +66,6 @@ start_link() ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
-
--spec init( Args :: [] ) -> 
-    {ok, State :: #state{}} | 
-    {ok, State :: #state{}, Timeout :: integer()} |
-    ignore | {stop, Reason :: string()}.
-
-init([]) ->
-    lager:info("Loading Application eComponent", []),
-    timem:init(),
-    configure().
-
 -spec configure() -> {ok, #state{}}.
 
 configure() ->
@@ -120,16 +102,19 @@ configure() ->
         accessListGet = proplists:get_value(access_list_get, Conf, [])
     }}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
+-spec init( Args :: [] ) -> 
+    {ok, State :: #state{}} | 
+    {ok, State :: #state{}, hibernate | infinity | non_neg_integer()} |
+    ignore | {stop, Reason :: string()}.
+
+init([]) ->
+    lager:info("Loading Application eComponent", []),
+    timem:init(),
+    configure().
 
 -spec handle_info(Msg::any(), State::#state{}) ->
     {noreply, State::#state{}} |
-    {noreply, State::#state{}, Timeout::integer()} |
+    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
 
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
@@ -192,37 +177,20 @@ handle_info(Record, State) ->
     lager:info("Unknown Info Request: ~p~n", [Record]),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-
 -spec handle_cast(Msg::any(), State::#state{}) ->
     {noreply, State::#state{}} |
-    {noreply, State::#state{}, Timeout::integer()} |
+    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
 
 handle_cast(_Msg, State) ->
     lager:info("Received: ~p~n", [_Msg]), 
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
-
--spec handle_call(Msg::any(), From::pid(), State::#state{}) ->
+-spec handle_call(Msg::any(), From::{pid(),_}, State::#state{}) ->
     {reply, Reply::any(), State::#state{}} |
-    {reply, Reply::any(), State::#state{}, Timeout::integer()} |
+    {reply, Reply::any(), State::#state{}, hibernate | infinity | non_neg_integer()} |
     {noreply, State::#state{}} |
-    {noreply, State::#state{}, Timeout::integer()} |
+    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
 
@@ -273,24 +241,11 @@ handle_call(Info, _From, _State) ->
     lager:info("Received Call: ~p~n", [Info]),
     {reply, ok, _State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
-
 -spec terminate(Reason::any(), State::#state{}) -> ok.
 
 terminate(_Reason, _State) ->
     lager:info("Terminated Component.", []),
     ok.
-
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 
 -spec code_change(OldVsn::string(), State::#state{}, Extra::any()) ->
     {ok, State::#state{}}.
@@ -333,7 +288,7 @@ gen_id([H|T], Result, true, Timeout) ->
 gen_id([H|T], Result, false, Timeout) ->
     gen_id(T, [H|Result], false, Timeout).
 
--spec resend(N::binary()) -> ok.
+-spec resend(N :: #matching{}) -> ok.
 
 resend(N) when is_record(N, matching) ->
     ?MODULE ! {resend, N},
@@ -346,6 +301,9 @@ init_syslog(Facility, Name) ->
     syslog:open(Name, [cons, perror, pid], Facility).
 
 -spec save_id(Id::binary(), NS::string(), Packet::term(), App::atom()) -> #matching{} | ok.
+
+save_id(_Id, _NS, _Packet, ecomponent) ->
+    ok;
 
 save_id(Id, NS, Packet, App) ->
     N = #matching{id=Id, ns=NS, processor=App, tries=0, packet=Packet},
@@ -387,7 +345,7 @@ prepare_processors(P) ->
     ],
     ok.
 
--spec get_processor_by_ns(NS::atom()) -> [] | processor().
+-spec get_processor_by_ns(NS::atom()) -> [] | mod_processor() | app_processor().
 
 get_processor_by_ns(NS) ->
     case ets:lookup(?NS_PROCESSOR, NS) of
@@ -399,11 +357,14 @@ get_processor_by_ns(NS) ->
             end
     end.
 
--spec make_connection(JID::jid(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
+-spec make_connection(JID::maybe_improper_list(), Pass::maybe_improper_list(), Server::maybe_improper_list(), Port::integer()) -> {R::string(), XmppCom::pid()}.
 
 make_connection(JID, Pass, Server, Port) -> 
     XmppCom = exmpp_component:start(),
     make_connection(XmppCom, JID, Pass, Server, Port, 20).
+    
+-spec make_connection(XmppCom::pid(), JID::jid(), Pass::string(), Server::string(), Port::integer(), Tries::integer()) -> {string(), pid()}.    
+
 make_connection(XmppCom, JID, Pass, Server, Port, 0) -> 
     exmpp_component:stop(XmppCom),
     make_connection(JID, Pass, Server, Port);
