@@ -99,7 +99,7 @@ init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
-    NS = exmpp_xml:get_payload_ns_as_atom(IQ),
+    NS = exmpp_iq:get_payload_ns_as_atom(IQ),
     spawn(metrics, notify_throughput_iq, [Type, NS]),
     case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
         true ->

@@ -17,14 +17,17 @@ init() ->
             ets:delete_all_objects(response_time)
     end.
 
+-spec notify_throughput_iq(Type :: atom(), NS :: atom()) -> ok | {error, Name :: atom(), nonexistent_metric} | {error, Type :: atom(), unsupported_metric_type}.
 notify_throughput_iq(Type, NS) ->
-    Name = concat("throughput_", concat(Type, NS)),
+    Name = concat("throughput_", concat(concat(Type, "_"), NS)),
     check_metric(Name),
     folsom_metrics:notify({Name, 1}).
 
+-spec set_iq_time(Id :: binary(), Type :: atom(), NS :: atom()) -> boolean().
 set_iq_time(Id, Type, NS) ->
-    ets:insert(response_time, {Id, {now(), concat(Type, NS)}}).
+    ets:insert(response_time, {Id, {now(), concat(concat(Type, "_"), NS)}}).
 
+-spec notify_resp_time(Id :: binary()) -> ok | {error, Name :: atom(), nonexistent_metric} | {error, Type :: atom(), unsupported_metric_type}.
 notify_resp_time(Id) ->               
     case ets:lookup(response_time, Id) of
         [{_, {Time, Mname}}] ->
@@ -35,22 +38,27 @@ notify_resp_time(Id) ->
         _ -> ok
     end.
 
+-spec notify_dropped_iq(Type :: atom(), NS :: atom()) -> ok | {error, Name :: atom(), nonexistent_metric} | {error, Type :: atom(), unsupported_metric_type}.
 notify_dropped_iq(Type, NS) ->
-    Name = concat("dropped_", concat(Type, NS)),
+    Name = concat("dropped_", concat(concat(Type, "_"), NS)),
     check_metric(Name),
     folsom_metrics:notify({Name, 1}).
 
+-spec check_metric(Name :: atom()) -> boolean().
 check_metric(Name) ->
     case ets:member(metrics, Name) of
         false ->
             folsom_metrics:new_histogram(Name, slide, 60), %%TODO need configure time
-            ets:insert(metrics, Name);
-        _ -> ok
+            ets:insert(metrics, {Name, 1});
+        _ -> true
     end.
 
 -spec concat(S :: string(), A :: atom()) -> atom();
-            (S :: atom(), A :: atom()) -> atom().
+            (S :: atom(), A :: atom()) -> atom();
+            (S :: atom(), A :: string()) -> atom().
 concat(S, A) when is_list(S) andalso is_atom(A) ->
     erlang:list_to_atom(S ++ erlang:atom_to_list(A));
 concat(S, A) when is_atom(S) andalso is_atom(A) ->
-    erlang:list_to_atom(erlang:atom_to_list(S) ++ erlang:atom_to_list(A)).
+    erlang:list_to_atom(erlang:atom_to_list(S) ++ erlang:atom_to_list(A));
+concat(S, A) when is_atom(S) andalso is_list(A) ->
+    erlang:list_to_atom(erlang:atom_to_list(S) ++ A).
