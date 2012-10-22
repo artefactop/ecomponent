@@ -10,7 +10,9 @@
                   lager,
                   mnesia,
                   syslog,
-                  folsom
+                  folsom,
+                  cowboy,
+                  folsom_cowboy
                  ]},
   {mod, { ecomponent_app, []}},
   {env, [
