@@ -99,12 +99,15 @@ init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
-    spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ)]),
+    NS = exmpp_xml:get_payload_ns_as_atom(IQ),
+    spawn(metrics, notify_throughput_iq, [Type, NS]),
     case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
         true ->
-            spawn(iq_handler, pre_process_iq, [Type, IQ, From]),
+            spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+            spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From]),
             {noreply, State};
         _ ->
+            spawn(metrics, notify_dropped_iq, [Type, NS]),
             {noreply, State}
     end;
 
@@ -121,9 +124,10 @@ handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID
         request -> 
             Packet = exmpp_xml:set_attribute(NewPacket, <<"id">>, erlang:integer_to_list(IqID)),
             ID = exmpp_stanza:get_id(Packet),
+            spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(Packet), NS]),
             save_id(ID, NS, Packet, App);
         _ ->
-            spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(NewPacket), NS]),
+            spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(NewPacket)]),
             Packet = NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
