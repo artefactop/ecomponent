@@ -53,9 +53,12 @@ check_metric(Name) ->
         _ -> true
     end.
 
--spec concat(S :: string(), A :: atom()) -> atom();
+-spec concat(S :: string(), A :: string()) -> atom();
+            (S :: string(), A :: atom()) -> atom();
             (S :: atom(), A :: atom()) -> atom();
             (S :: atom(), A :: string()) -> atom().
+concat(S, A) when is_list(S) andalso is_list(A) ->
+    erlang:list_to_atom(S ++ A);
 concat(S, A) when is_list(S) andalso is_atom(A) ->
     erlang:list_to_atom(S ++ erlang:atom_to_list(A));
 concat(S, A) when is_atom(S) andalso is_atom(A) ->
