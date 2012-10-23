@@ -10,7 +10,10 @@
                   lager,
                   mnesia,
                   syslog,
+                  bear,
                   folsom,
+                  ranch,
+                  xmerl,
                   cowboy,
                   folsom_cowboy
                  ]},
