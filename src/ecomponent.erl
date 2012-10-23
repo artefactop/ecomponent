@@ -29,12 +29,11 @@
 -define(REQUEST_TIMEOUT, 10).
 -define(SYSLOG_FACILITY, local7).
 -define(SYSLOG_NAME, "ecomponent").
--define(DEFAULT_ID, <<"ec_00000000">>).
+-define(TIMEOUT, 60).
 
 -record(state, {
     xmppCom :: pid(),
     jid :: jid(),
-    id = ?DEFAULT_ID :: binary(),
     pass :: string(),
     server :: string(),
     port :: integer(),
@@ -48,23 +47,212 @@
     accessListSet = [] :: accesslist(),
     accessListGet = [] :: accesslist(),
     syslogFacility = ?SYSLOG_FACILITY :: atom(),
-    syslogName = ?SYSLOG_NAME :: string()
+    syslogName = ?SYSLOG_NAME :: string(),
+    timeout = ?TIMEOUT :: integer()
 }).
 
 %% API
--export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, syslog/2, configure/0]).
+-export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, syslog/2, configure/0, gen_id/0]).
 
 %% gen_server callbacks
--export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -spec start_link() -> {ok, Pid::pid()} | {error, Reason::any()}.
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+-spec stop() -> ok.
+
+stop() ->
+    gen_server:call(?MODULE, stop).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
+
+-spec init( Args :: [] ) -> 
+    {ok, State :: #state{}} | 
+    {ok, State :: #state{}, hibernate | infinity | non_neg_integer()} |
+    ignore | {stop, Reason :: string()}.
+
+init([]) ->
+    lager:info("Loading Application eComponent", []),
+    timem:init(),
+    configure().
+
+-spec handle_info(Msg::any(), State::#state{}) ->
+    {noreply, State::#state{}} |
+    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
+    {stop, Reason::any(), State::#state{}}.
+
+handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
+        true ->
+            spawn(iq_handler, pre_process_iq, [Type, IQ, From]),
+            {noreply, State, get_countdown(State)};
+        false ->
+            {noreply, State, get_countdown(State)}
+    end;
+
+handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, requestTimeout=RT}=State) ->
+    ID = gen_id(),
+    Kind = exmpp_iq:get_kind(OPacket),
+    From = exmpp_stanza:get_sender(OPacket),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
+        _ ->
+            OPacket
+    end,
+    Packet = case Kind of
+        request ->
+            P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID),
+            save_id(ID, NS, P, App),
+            P;
+        _ -> 
+            NewPacket
+    end,
+    lager:debug("Sending packet ~p",[Packet]),
+    exmpp_component:send_packet(XmppCom, Packet),
+    {noreply, State, get_countdown(State)};
+
+handle_info({resend, #matching{tries=Tries, packet=P}=N}, #state{xmppCom = XmppCom, maxTries=Max}=State) when Tries < Max ->
+    save_id(N#matching{tries=Tries+1}),
+    exmpp_component:send_packet(XmppCom, P),
+    {noreply, State, get_countdown(State)};
+
+handle_info({resend, #matching{tries=Tries}=N}, #state{maxTries=Max}=State) when Tries >= Max ->
+    lager:warning("Max tries exceeded for: ~p~n", [N]),
+    {noreply, State, get_countdown(State)};
+
+handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
+    lager:info("Connection Closed. Trying to Reconnect...~n", []),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
+    lager:info("Reconnected.~n", []),
+    {noreply, State#state{xmppCom=XmppCom}, get_countdown(State)};
+
+handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
+    lager:info("Connection Closed. Trying to Reconnect...~n", []),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
+    lager:info("Reconnected.~n", []),
+    {noreply, State#state{xmppCom=XmppCom}, get_countdown(State)};
+
+handle_info(stop, #state{xmppCom=XmppCom}=State) ->
+    lager:info("Component Stopped.~n",[]),
+    exmpp_component:stop(XmppCom),
+    {stop, normal, State};
+
+handle_info(timeout, State) ->
+    expired_stanzas(),
+    {noreply, reset_countdown(State), ?TIMEOUT};
+
+handle_info(Record, State) -> 
+    lager:info("Unknown Info Request: ~p~n", [Record]),
+    {noreply, State, get_countdown(State)}.
+
+
+-spec handle_cast(Msg::any(), State::#state{}) ->
+    {noreply, State::#state{}} |
+    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
+    {stop, Reason::any(), State::#state{}}.
+
+handle_cast(_Msg, State) ->
+    lager:info("Received: ~p~n", [_Msg]), 
+    {noreply, State, get_countdown(State)}.
+
+
+-spec handle_call(Msg::any(), From::{pid(),_}, State::#state{}) ->
+    {reply, Reply::any(), State::#state{}} |
+    {reply, Reply::any(), State::#state{}, hibernate | infinity | non_neg_integer()} |
+    {noreply, State::#state{}} |
+    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
+    {stop, Reason::any(), Reply::any(), State::#state{}} |
+    {stop, Reason::any(), State::#state{}}.
+
+handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
+    lager:info("Received Call: ~p~n", [Info]),
+    {reply, is_allowed(set, NS, Jid, State), State, get_countdown(State)};
+
+handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
+    lager:info("Received Call: ~p~n", [Info]),
+    {reply, is_allowed(get, NS, Jid, State), State, get_countdown(State)};
+
+handle_call(reconnect, _From, State) ->
+    exmpp_component:stop(State#state.xmppCom),
+    timer:sleep(250),
+    {_, XmppCom} = make_connection(
+        State#state.jid, State#state.pass,
+        State#state.server, State#state.port
+    ),
+    {reply, ok, State#state{xmppCom=XmppCom}, get_countdown(State)};
+
+handle_call({change_config, syslog, {Facility, Name}}, _From, State) ->
+    init_syslog(if
+        is_number(Facility) -> Facility;
+        true -> list_to_atom(Facility)
+    end, Name),
+    {reply, ok, State, get_countdown(State)};
+
+handle_call({change_config, Key, Value}, _From, State) ->
+    case Key of
+        maxPerPeriod -> {reply, ok, State#state{maxPerPeriod=Value}, get_countdown(State)};
+        periodSeconds -> {reply, ok, State#state{periodSeconds=Value}, get_countdown(State)};
+        maxTries -> {reply, ok, State#state{maxTries=Value}, get_countdown(State)};
+        resendPeriod -> {reply, ok, State#state{resendPeriod=Value}, get_countdown(State)};
+        requestTimeout -> {reply, ok, State#state{requestTimeout=Value}, get_countdown(State)};
+        _ -> {reply, error, State, get_countdown(State)}
+    end;
+
+handle_call({set_xmpp_conf, JID, Pass, Server, Port}, _From, State) ->
+    exmpp_component:stop(State#state.xmppCom),
+    timer:sleep(250),
+    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
+    {reply, ok, State#state{jid=JID, pass=Pass, server=Server, port=Port, xmppCom=XmppCom}, get_countdown(State)};
+
+handle_call(get_xmpp_conf, _From, State) ->
+    {reply, [State#state.jid, State#state.pass, State#state.server, State#state.port], State, get_countdown(State)};
+        
+handle_call(stop, _From, State) ->
+    {stop, normal, ok, State};
+
+handle_call(Info, _From, _State) ->
+    lager:info("Received Call: ~p~n", [Info]),
+    {reply, ok, _State, get_countdown(State)}.
+
+
+-spec terminate(Reason::any(), State::#state{}) -> ok.
+
+terminate(_Reason, _State) ->
+    lager:info("Terminated Component.", []),
+    ok.
+
+-spec code_change(OldVsn::string(), State::#state{}, Extra::any()) ->
+    {ok, State::#state{}}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%%--------------------------------------------------------------------
+%%% Internal functions
+%%--------------------------------------------------------------------
+
+-spec reset_countdown(State::#state{}) -> #state{}.
+
+reset_countdown(State) ->
+    {A,B,_} = now(),
+    State#state{timeout=(A*1000000+B)}.
+
+-spec get_countdown(Begin::integer()) -> integer().
+
+get_countdown(#state{timeout=Begin}) ->
+    {A,B,_} = now(),
+    case ((A * 1000000 + B) - Begin) of
+        Time when Time =< ?TIMEOUT ->
+            ?TIMEOUT - Time;
+        _ ->
+            0
+    end.
 
 -spec configure() -> {ok, #state{}}.
 
@@ -102,191 +290,16 @@ configure() ->
         accessListGet = proplists:get_value(access_list_get, Conf, [])
     }}.
 
--spec init( Args :: [] ) -> 
-    {ok, State :: #state{}} | 
-    {ok, State :: #state{}, hibernate | infinity | non_neg_integer()} |
-    ignore | {stop, Reason :: string()}.
+-spec gen_id() -> binary().
 
-init([]) ->
-    lager:info("Loading Application eComponent", []),
-    timem:init(),
-    configure().
+gen_id(Timeout) ->
+    list_to_binary(uuid:to_string(uuid:uuid4())).
 
--spec handle_info(Msg::any(), State::#state{}) ->
-    {noreply, State::#state{}} |
-    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
-    {stop, Reason::any(), State::#state{}}.
+-spec expired_stanzas() -> ok.
 
-handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
-    case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
-        true ->
-            spawn(iq_handler, pre_process_iq, [Type, IQ, From]),
-            {noreply, State};
-        false ->
-            {noreply, State}
-    end;
-
-handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, id=ID, requestTimeout=RT}=State) ->
-    Kind = exmpp_iq:get_kind(OPacket),
-    From = exmpp_stanza:get_sender(OPacket),
-    NewPacket = case From of
-        undefined ->
-            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
-        _ ->
-            OPacket
-    end,
-    Packet = case Kind of
-        request ->
-            P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID),
-            save_id(ID, NS, P, App),
-            P;
-        _ -> 
-            NewPacket
-    end,
-    lager:debug("Sending packet ~p",[Packet]),
-    exmpp_component:send_packet(XmppCom, Packet),
-    {noreply, State#state{id=gen_id(ID, RT)}};
-
-handle_info({resend, #matching{tries=Tries, packet=P}=N}, #state{xmppCom = XmppCom, maxTries=Max}=State) when Tries < Max ->
-    save_id(N#matching{tries=Tries+1}),
-    exmpp_component:send_packet(XmppCom, P),
-    {noreply, State};
-
-handle_info({resend, #matching{tries=Tries}=N}, #state{maxTries=Max}=State) when Tries >= Max ->
-    lager:warning("Max tries exceeded for: ~p~n", [N]),
-    {noreply, State};
-
-handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
-    lager:info("Connection Closed. Trying to Reconnect...~n", []),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    lager:info("Reconnected.~n", []),
-    {noreply, State#state{xmppCom=XmppCom}};
-
-handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
-    lager:info("Connection Closed. Trying to Reconnect...~n", []),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    lager:info("Reconnected.~n", []),
-    {noreply, State#state{xmppCom=XmppCom}};
-
-handle_info(stop, #state{xmppCom=XmppCom}=State) ->
-    lager:info("Component Stopped.~n",[]),
-    exmpp_component:stop(XmppCom),
-    {stop, normal, State};
-
-handle_info(Record, State) -> 
-    lager:info("Unknown Info Request: ~p~n", [Record]),
-    {noreply, State}.
-
--spec handle_cast(Msg::any(), State::#state{}) ->
-    {noreply, State::#state{}} |
-    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
-    {stop, Reason::any(), State::#state{}}.
-
-handle_cast(_Msg, State) ->
-    lager:info("Received: ~p~n", [_Msg]), 
-    {noreply, State}.
-
--spec handle_call(Msg::any(), From::{pid(),_}, State::#state{}) ->
-    {reply, Reply::any(), State::#state{}} |
-    {reply, Reply::any(), State::#state{}, hibernate | infinity | non_neg_integer()} |
-    {noreply, State::#state{}} |
-    {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
-    {stop, Reason::any(), Reply::any(), State::#state{}} |
-    {stop, Reason::any(), State::#state{}}.
-
-handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
-    lager:info("Received Call: ~p~n", [Info]),
-    {reply, is_allowed(set, NS, Jid, State), State};
-
-handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
-    lager:info("Received Call: ~p~n", [Info]),
-    {reply, is_allowed(get, NS, Jid, State), State};
-
-handle_call(reconnect, _From, State) ->
-    exmpp_component:stop(State#state.xmppCom),
-    timer:sleep(250),
-    {_, XmppCom} = make_connection(
-        State#state.jid, State#state.pass,
-        State#state.server, State#state.port
-    ),
-    {reply, ok, State#state{xmppCom=XmppCom}};
-
-handle_call({change_config, syslog, {Facility, Name}}, _From, State) ->
-    init_syslog(if
-        is_number(Facility) -> Facility;
-        true -> list_to_atom(Facility)
-    end, Name),
-    {reply, ok, State};
-
-handle_call({change_config, Key, Value}, _From, State) ->
-    case Key of
-        maxPerPeriod -> {reply, ok, State#state{maxPerPeriod=Value}};
-        periodSeconds -> {reply, ok, State#state{periodSeconds=Value}};
-        maxTries -> {reply, ok, State#state{maxTries=Value}};
-        resendPeriod -> {reply, ok, State#state{resendPeriod=Value}};
-        requestTimeout -> {reply, ok, State#state{requestTimeout=Value}};
-        _ -> {reply, error, State}
-    end;
-
-handle_call({set_xmpp_conf, JID, Pass, Server, Port}, _From, State) ->
-    exmpp_component:stop(State#state.xmppCom),
-    timer:sleep(250),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    {reply, ok, State#state{jid=JID, pass=Pass, server=Server, port=Port, xmppCom=XmppCom}};
-
-handle_call(get_xmpp_conf, _From, State) ->
-    {reply, [State#state.jid, State#state.pass, State#state.server, State#state.port], State};
-        
-handle_call(Info, _From, _State) ->
-    lager:info("Received Call: ~p~n", [Info]),
-    {reply, ok, _State}.
-
--spec terminate(Reason::any(), State::#state{}) -> ok.
-
-terminate(_Reason, _State) ->
-    lager:info("Terminated Component.", []),
-    ok.
-
--spec code_change(OldVsn::string(), State::#state{}, Extra::any()) ->
-    {ok, State::#state{}}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-%%--------------------------------------------------------------------
-%%% Internal functions
-%%--------------------------------------------------------------------
-
--spec increment(A::integer()) -> integer().
-
-increment(A) when 
-    (A >= $0 andalso A < $9) orelse
-    (A >= $A andalso A < $Z) orelse
-    (A >= $a andalso A < $z) ->
-    A+1;
-increment($9) ->
-    $A;
-increment($Z) ->
-    $a.
-
--spec gen_id(B::binary(), Timeout::integer()) -> binary().
-
-gen_id(B, Timeout) ->
-    gen_id(lists:reverse(binary_to_list(B)), [], true, Timeout).
-
--spec gen_id(List::string(), Result::string(), Change::boolean(), Timeout::integer()) -> binary().
-
-gen_id([], Result, _Change, _Timeout) ->
-    list_to_binary(Result);
-gen_id([$_|T], Result, true, Timeout) ->
+expired_stanzas() ->
     [ resend(N) || {_K, N} <- timem:remove_expired(Timeout), is_record(N, matching) ],
-    gen_id(T, [$_|Result], false, Timeout);
-gen_id([$z|T], Result, true, Timeout) ->
-    gen_id(T, [$0|Result], true, Timeout);
-gen_id([H|T], Result, true, Timeout) ->
-    gen_id(T, [increment(H)|Result], false, Timeout);
-gen_id([H|T], Result, false, Timeout) ->
-    gen_id(T, [H|Result], false, Timeout).
+    ok.
 
 -spec resend(N :: #matching{}) -> ok.
 
@@ -326,7 +339,7 @@ get_processor(Id) ->
         {_, N} when is_record(N, matching) -> 
             N;
         _ ->
-            lager:warning("Found no matching processor for id ~s",[Id]),
+            lager:warning("Found no matching processor for id [~p]",[Id]),
             undefined
     end.
 

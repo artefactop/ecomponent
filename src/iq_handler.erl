@@ -59,6 +59,8 @@ process_iq(P) ->
 
 forward_ns(#params{ns=NS}=Params) ->
     case ecomponent:get_processor_by_ns(NS) of
+        undefined -> 
+            spawn(processor, process_iq, [Params]);
         {mod, P} ->
             spawn(P, process_iq, [Params]);
         {app, Name} ->
