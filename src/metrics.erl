@@ -20,7 +20,12 @@ init() ->
 -spec notify_throughput_iq(Type :: atom(), NS :: atom()) -> ok | {error, Name :: atom(), nonexistent_metric} | {error, Type :: atom(), unsupported_metric_type}.
 notify_throughput_iq(Type, NS) ->
     Name = concat("throughput_", concat(concat(Type, "_"), NS)),
-    check_metric(Name),
+    case ets:member(metrics, Name) of
+        false ->
+            folsom_metrics:new_spiral(Name), %% last 60 sec
+            ets:insert(metrics, {Name, 1});
+        _ -> true
+    end,
     folsom_metrics:notify({Name, 1}).
 
 -spec set_iq_time(Id :: binary(), Type :: atom(), NS :: atom()) -> boolean().
@@ -32,7 +37,12 @@ notify_resp_time(Id) ->
     case ets:lookup(response_time, Id) of
         [{_, {Time, Mname}}] ->
             Name = concat("response_time_", Mname),
-            check_metric(Name),
+            case ets:member(metrics, Name) of
+                false ->
+                    folsom_metrics:new_histogram(Name, slide, 60), %%TODO need configure time
+                    ets:insert(metrics, {Name, 1});
+                _ -> true
+            end,
             Diff = timer:now_diff(now(), Time)/1000000, %%seconds
             folsom_metrics:notify({Name, Diff});
         _ -> ok
@@ -41,17 +51,13 @@ notify_resp_time(Id) ->
 -spec notify_dropped_iq(Type :: atom(), NS :: atom()) -> ok | {error, Name :: atom(), nonexistent_metric} | {error, Type :: atom(), unsupported_metric_type}.
 notify_dropped_iq(Type, NS) ->
     Name = concat("dropped_", concat(concat(Type, "_"), NS)),
-    check_metric(Name),
-    folsom_metrics:notify({Name, 1}).
-
--spec check_metric(Name :: atom()) -> boolean().
-check_metric(Name) ->
     case ets:member(metrics, Name) of
         false ->
-            folsom_metrics:new_histogram(Name, slide, 60), %%TODO need configure time
+            folsom_metrics:new_spiral(Name), %% last 60 sec
             ets:insert(metrics, {Name, 1});
         _ -> true
-    end.
+    end,
+    folsom_metrics:notify({Name, 1}).
 
 -spec concat(S :: string(), A :: string()) -> atom();
             (S :: string(), A :: atom()) -> atom();
