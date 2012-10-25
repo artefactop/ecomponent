@@ -77,6 +77,32 @@ end_per_suite(_Config) ->
 
 init_per_testcase(config_test, Config) ->
     Config;
+init_per_testcase(save_id_expired_test, Config) ->
+    meck:expect(confetti, fetch, fun(_) -> [
+        {syslog_name, "ecomponent" },
+        {jid, "ecomponent.test" },
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"},
+        {whitelist, [] }, %% throttle whitelist
+        {access_list_get, []},
+        {access_list_set, [
+            {'com.yuilop.push/message', [<<"bob.localhost">>]},
+            {'com.yuilop.push/jingle-initiate', [<<"bob.localhost">>]},
+            {'com.yuilop.push/jingle-terminate', [<<"bob.localhost">>]},
+            {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
+            {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
+            {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
+        ]},
+        {max_per_period, 15},
+        {period_seconds, 8},
+        {processors, [
+            {default, {mod, dummy}}
+        ]},
+        {request_timeout, 2}
+    ] end),
+    {ok, _Pid} = ecomponent:start_link(),
+    Config;
 init_per_testcase(_, Config) ->
     error_logger:info_msg("INIT GENERIC TESTCASE"),
     {ok, _Pid} = ecomponent:start_link(),
@@ -90,8 +116,10 @@ end_per_testcase(_, _Config) ->
 
 config_test(_Config) ->
     {ok, State} = ecomponent:init([]),
-    State = {state, 
-        self(), "ecomponent.test", <<"ec_00000000">>, "secret",
+    lager:info("~p~n", [State]),
+    Pid = self(),
+    {state, 
+        Pid, "ecomponent.test", "secret",
         "localhost", 8899, [], 15, 8, [{default, {mod, dummy}}],
         3, 100, 10, [
             {'com.yuilop.push/message', [<<"bob.localhost">>]},
@@ -100,7 +128,7 @@ config_test(_Config) ->
             {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
             {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
             {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
-        ], [], local7, "ecomponent"},
+        ], [], local7, "ecomponent", _Timestamp} = State,
     ok.
 
 ping_test(_Config) ->
@@ -108,7 +136,7 @@ ping_test(_Config) ->
         packet_type=iq, type_attr="get", raw_packet=
             {xmlel, 'jabber:client', none, 'iq',[
                 {<<"type">>,"get"},
-                {<<"to">>,"micasa.net"},
+                {<<"to">>,"alice.localhost"},
                 {<<"id">>,"test_bot"}
             ], [
                 {xmlel, 'urn:xmpp:ping', none, 'ping', [],[]}
@@ -223,18 +251,36 @@ forward_ns_in_set_test(_Config) ->
 
 save_id_expired_test(_Config) ->
     Id = ecomponent:gen_id(),
+    Id_l = binary_to_list(Id),
     Packet = #received_packet{
         packet_type=iq, type_attr="set", raw_packet=
             {xmlel, 'jabber:client', none, 'iq', [
                 {<<"type">>, "set"},
                 {<<"to">>, "alice.localhost"},
-                {<<"id">>, binary_to_list(Id)}
+                {<<"id">>, Id_l}
             ], [
                 {xmlel, 'urn:itself', none, 'data', [], []}
             ]},
         from={"bob", "localhost", undefined}
     },
-    save_id(Id, 'urn:itself', Packet, dummy),
-    %% TODO implement the save_id_expired_test with timem tuning throught meck.
-    ok.
+    Pid = self(),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        error_logger:info_msg("Sending Packet: ~p", [P]),
+        Pid ! P
+    end),
+    ecomponent:save_id(Id, 'urn:itself', Packet, dummy),
+    receive
+        {xmlel, 'jabber:client', none, 'iq', [
+            {<<"type">>, "set"},
+            {<<"to">>, "alice.localhost"},
+            {<<"id">>, Id_l}
+        ], [
+            {xmlel, 'urn:itself', none, 'data', [], []}
+        ]} ->
+            ok;
+        Any ->
+            throw(Any)
+    after 3000 ->
+        throw("Timeout error")
+    end.
 

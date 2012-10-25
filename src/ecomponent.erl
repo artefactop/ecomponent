@@ -29,7 +29,6 @@
 -define(REQUEST_TIMEOUT, 10).
 -define(SYSLOG_FACILITY, local7).
 -define(SYSLOG_NAME, "ecomponent").
--define(TIMEOUT, 60).
 
 -record(state, {
     xmppCom :: pid(),
@@ -48,7 +47,7 @@
     accessListGet = [] :: accesslist(),
     syslogFacility = ?SYSLOG_FACILITY :: atom(),
     syslogName = ?SYSLOG_NAME :: string(),
-    timeout = ?TIMEOUT :: integer()
+    timeout = undefined :: integer()
 }).
 
 %% API
@@ -95,7 +94,7 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
             {noreply, State, get_countdown(State)}
     end;
 
-handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, requestTimeout=RT}=State) ->
+handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
     ID = gen_id(),
     Kind = exmpp_iq:get_kind(OPacket),
     From = exmpp_stanza:get_sender(OPacket),
@@ -143,9 +142,9 @@ handle_info(stop, #state{xmppCom=XmppCom}=State) ->
     exmpp_component:stop(XmppCom),
     {stop, normal, State};
 
-handle_info(timeout, State) ->
-    expired_stanzas(),
-    {noreply, reset_countdown(State), ?TIMEOUT};
+handle_info(timeout, #state{requestTimeout=RT}=State) ->
+    expired_stanzas(RT),
+    {noreply, reset_countdown(State), State#state.requestTimeout};
 
 handle_info(Record, State) -> 
     lager:info("Unknown Info Request: ~p~n", [Record]),
@@ -216,9 +215,9 @@ handle_call(get_xmpp_conf, _From, State) ->
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 
-handle_call(Info, _From, _State) ->
+handle_call(Info, _From, State) ->
     lager:info("Received Call: ~p~n", [Info]),
-    {reply, ok, _State, get_countdown(State)}.
+    {reply, ok, State, get_countdown(State)}.
 
 
 -spec terminate(Reason::any(), State::#state{}) -> ok.
@@ -245,13 +244,15 @@ reset_countdown(State) ->
 
 -spec get_countdown(Begin::integer()) -> integer().
 
-get_countdown(#state{timeout=Begin}) ->
+get_countdown(#state{timeout=undefined}) ->
+    100;
+get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
     {A,B,_} = now(),
     case ((A * 1000000 + B) - Begin) of
-        Time when Time =< ?TIMEOUT ->
-            ?TIMEOUT - Time;
+        Time when Time =< RT ->
+            (RT - Time) * 1000;
         _ ->
-            0
+            100
     end.
 
 -spec configure() -> {ok, #state{}}.
@@ -273,7 +274,7 @@ configure() ->
     mod_monitor:init(WhiteList),
     prepare_processors(Processors),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    {ok, #state{
+    {ok, reset_countdown(#state{
         xmppCom = XmppCom,
         jid = JID,
         pass = Pass,
@@ -288,16 +289,16 @@ configure() ->
         requestTimeout = proplists:get_value(request_timeout, Conf, ?REQUEST_TIMEOUT),
         accessListSet = proplists:get_value(access_list_set, Conf, []),
         accessListGet = proplists:get_value(access_list_get, Conf, [])
-    }}.
+    })}.
 
 -spec gen_id() -> binary().
 
-gen_id(Timeout) ->
+gen_id() ->
     list_to_binary(uuid:to_string(uuid:uuid4())).
 
--spec expired_stanzas() -> ok.
+-spec expired_stanzas(Timeout::integer()) -> ok.
 
-expired_stanzas() ->
+expired_stanzas(Timeout) ->
     [ resend(N) || {_K, N} <- timem:remove_expired(Timeout), is_record(N, matching) ],
     ok.
 
