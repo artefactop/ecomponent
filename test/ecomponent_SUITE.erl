@@ -9,13 +9,14 @@
 -export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([
     config_test/1, ping_test/1, disco_test/1,
-    forward_response_module_test/1,forward_ns_in_set_test/1
+    forward_response_module_test/1,forward_ns_in_set_test/1,
+    save_id_expired_test/1, coutdown_test/1
 ]).
 
 all() -> 
     [
         config_test, ping_test, disco_test, forward_response_module_test,
-        forward_ns_in_set_test
+        forward_ns_in_set_test, save_id_expired_test, coutdown_test
     ].
 
 init_per_suite(Config) ->
@@ -252,35 +253,50 @@ forward_ns_in_set_test(_Config) ->
 save_id_expired_test(_Config) ->
     Id = ecomponent:gen_id(),
     Id_l = binary_to_list(Id),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="set", raw_packet=
-            {xmlel, 'jabber:client', none, 'iq', [
-                {<<"type">>, "set"},
-                {<<"to">>, "alice.localhost"},
-                {<<"id">>, Id_l}
-            ], [
-                {xmlel, 'urn:itself', none, 'data', [], []}
-            ]},
-        from={"bob", "localhost", undefined}
-    },
+    Packet = {xmlel, 'jabber:client', none, 'iq', [
+        {<<"type">>, "set"},
+        {<<"to">>, "alice.localhost"},
+        {<<"id">>, Id_l}
+    ], [
+        {xmlel, 'urn:itself', none, 'data', [], []}
+    ]},
     Pid = self(),
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         error_logger:info_msg("Sending Packet: ~p", [P]),
         Pid ! P
     end),
     ecomponent:save_id(Id, 'urn:itself', Packet, dummy),
+    ecomponent ! getup, %% for init counter
     receive
-        {xmlel, 'jabber:client', none, 'iq', [
-            {<<"type">>, "set"},
-            {<<"to">>, "alice.localhost"},
-            {<<"id">>, Id_l}
+        {xmlel,'jabber:client',none,iq, [
+            {<<"type">>,"set"},
+            {<<"to">>,"alice.localhost"},
+            {<<"id">>,Id_l}
         ], [
-            {xmlel, 'urn:itself', none, 'data', [], []}
+            {xmlel,'urn:itself',none,data,[],[]}
         ]} ->
             ok;
         Any ->
+            error_logger:info_msg("~p~n", [Any]),
             throw(Any)
     after 3000 ->
         throw("Timeout error")
     end.
+
+coutdown_test(_Config) ->
+    St = {state, 
+        undefined, undefined, undefined, undefined, undefined, 
+        undefined, undefined, undefined, undefined, undefined, 
+        undefined, 3, undefined, undefined, undefined, undefined,
+        undefined
+    },
+    100 = ecomponent:get_countdown(St),
+    State = ecomponent:reset_countdown(St),
+    timer:sleep(1000),
+    2000 = ecomponent:get_countdown(State),
+    timer:sleep(1000),
+    1000 = ecomponent:get_countdown(State),
+    timer:sleep(1000),
+    100 = ecomponent:get_countdown(State),
+    ok.
 
