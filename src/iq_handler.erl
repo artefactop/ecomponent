@@ -7,9 +7,13 @@
 %% API
 -export([pre_process_iq/4]).
 
+-spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid()) -> ok.
+
 pre_process_iq(Type, IQ, NS, From) ->
     Payload = exmpp_iq:get_payload(IQ),
     process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
+
+-spec process_iq( Params::#params{} ) -> ok.
 
 process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
     Result = exmpp_iq:result(IQ),
@@ -46,10 +50,12 @@ process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
 process_iq(P) ->
     lager:info("Unknown Request: ~p~n", [P]).
 
+-spec forward_ns( Params::#params{} ) -> ok.
+
 forward_ns(#params{ns=NS}=Params) ->
     case ecomponent:get_processor_by_ns(NS) of
         undefined -> 
-            spawn(?MODULE, handle_unavailable, [Params]);
+            spawn(processor, process_iq, [Params]);
         {mod, P} ->
             spawn(P, process_iq, [Params]);
         {app, Name} ->
@@ -64,25 +70,15 @@ forward_ns(#params{ns=NS}=Params) ->
             lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Params])
     end.
 
+-spec forward_response( Params::#params{} ) -> ok.
+
 forward_response(#params{iq=IQ}=Params) ->
     ID = exmpp_stanza:get_id(IQ),
     case ecomponent:get_processor(ID) of
-        undefined -> 
-            ok;
-        #matching{processor=undefined} ->
-            ok;
         #matching{ns=NS, processor=App} ->
-            PID = whereis(App),
-            case is_pid(PID) of 
-                true ->
-                    PID ! #response{ns=NS, params=Params},
-                    ok;
-                _ -> ok
-            end;
-        _ -> 
+            App ! #response{ns=NS, params=Params},
+            ok;
+        _ ->
             ok
-    end;
-
-forward_response(_) -> 
-    ok.
+    end.
 

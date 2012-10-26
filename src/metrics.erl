@@ -3,6 +3,7 @@
 %% API
 -export([init/0, notify_throughput_iq/2, set_iq_time/3, notify_resp_time/1, notify_dropped_iq/2]).
 
+-spec init() -> ok.
 init() ->
     case ets:info(metrics) of
         undefined ->
@@ -15,7 +16,8 @@ init() ->
             ets:new(response_time, [named_table, public]);
         _ ->
             ets:delete_all_objects(response_time)
-    end.
+    end,
+    ok.
 
 -spec notify_throughput_iq(Type :: atom(), NS :: atom()) -> ok | {error, Name :: atom(), nonexistent_metric} | {error, Type :: atom(), unsupported_metric_type}.
 notify_throughput_iq(Type, NS) ->
