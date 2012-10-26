@@ -70,6 +70,7 @@ init({_,JID}, {_,Pass}, {_,Server}, {_,Port}, {_,WhiteList}, {_,MaxPerPeriod}, {
     lager:info("AccessListGet ~p", [AccessListGet]),
     mod_monitor:init(WhiteList),
     prepare_processors(Processors),
+    init_metrics(),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     {ok, #state{xmppCom=XmppCom,
         jid=JID,
@@ -98,33 +99,39 @@ init(_, _, _, _, _, _, _ , _, _, _, _, _, _) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    NS = exmpp_iq:get_payload_ns_as_atom(IQ),
+    spawn(metrics, notify_throughput_iq, [Type, NS]),
     case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
         true ->
-            spawn(iq_handler, pre_process_iq, [Type, IQ, From]),
+            spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+            spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From]),
             {noreply, State};
         _ ->
+            spawn(metrics, notify_dropped_iq, [Type, NS]),
             {noreply, State}
     end;
 
 handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom, iqId=IqID, resendPeriod=RP, requestTimeout=RT}=State) ->
     Kind = exmpp_iq:get_kind(OPacket),
     From = exmpp_stanza:get_sender(OPacket),
-        case From of
-                undefined ->
-                        NewPacket = exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
-                _ ->
+    case From of
+        undefined ->
+            NewPacket = exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
+        _ ->
             NewPacket = OPacket
-        end,
+    end,
     case Kind of
         request -> 
             Packet = exmpp_xml:set_attribute(NewPacket, <<"id">>, erlang:integer_to_list(IqID)),
-                ID = exmpp_stanza:get_id(Packet),
+            ID = exmpp_stanza:get_id(Packet),
+            spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(Packet), NS]),
             save_id(ID, NS, Packet, App);
-        _ -> 
+        _ ->
+            spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(NewPacket)]),
             Packet = NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-        exmpp_component:send_packet(XmppCom, Packet),
+    exmpp_component:send_packet(XmppCom, Packet),
     case IqID rem RP of
         0 ->
             cleanup_expired(RT);
@@ -215,6 +222,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+init_metrics() ->
+    metrics:init().
+
 init_syslog(Facility, Name) ->
     lager:info("Facility: ~p",[Facility]),
     syslog:open(Name, [cons, perror, pid], Facility).
@@ -229,7 +239,7 @@ save_id(#matching{id=Id, processor=App}=N) ->
         true ->
             N;
         _ ->
-                lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
+            lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
     end;
 save_id(_M) -> 
     lager:warning("Not Match found for saving id: ~p~n", [_M]).
@@ -245,12 +255,12 @@ cleanup_expired(D, [{_K, #matching{}=N }|T]) ->
     cleanup_expired(D, T).
     
 resend(#matching{}=N) ->
-        case whereis(?MODULE) of
-                undefined ->
-                        ok;
-                MPID when is_pid(MPID) ->
-                        MPID ! {resend, N}
-        end.
+    case whereis(?MODULE) of
+        undefined ->
+            ok;
+        MPID when is_pid(MPID) ->
+            MPID ! {resend, N}
+    end.
 
 get_processor(Id) ->
     V = timem:remove(Id),
@@ -264,10 +274,10 @@ get_processor(Id) ->
 
 prepare_processors(P) ->
     case ets:info(?NS_PROCESSOR) of
-            undefined ->
-                    ets:new(?NS_PROCESSOR, [named_table, public]);
-            _ ->
-                    ets:delete_all_objects(?NS_PROCESSOR)
+        undefined ->
+            ets:new(?NS_PROCESSOR, [named_table, public]);
+        _ ->
+            ets:delete_all_objects(?NS_PROCESSOR)
     end,
     p_p(P).
 
@@ -328,7 +338,7 @@ send(Packet, NS, App) ->
         undefined -> 
             ok;
         MPID when is_pid(MPID) -> 
-                MPID ! {send, Packet, NS, App}
+            MPID ! {send, Packet, NS, App}
     end.
 
 is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->

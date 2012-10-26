@@ -1,7 +1,7 @@
 {application, ecomponent,
  [
   {description, "Abstract xmpp component"},
-  {vsn, "0.2"},
+  {vsn, "0.3"},
   {registered, []},
   {applications, [
                   kernel,
@@ -9,7 +9,13 @@
                   exmpp,
                   lager,
                   mnesia,
-                  syslog
+                  syslog,
+                  bear,
+                  folsom,
+                  ranch,
+                  xmerl,
+                  cowboy,
+                  folsom_cowboy
                  ]},
   {mod, { ecomponent_app, []}},
   {env, [
