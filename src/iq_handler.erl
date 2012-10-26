@@ -5,18 +5,13 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([pre_process_iq/3]).
+-export([pre_process_iq/4]).
 
--spec pre_process_iq( undefined | string(), IQ::term(), From::ecomponent:jid()) -> ok.
+-spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid()) -> ok.
 
-pre_process_iq(Type, IQ, From) ->
+pre_process_iq(Type, IQ, NS, From) ->
     Payload = exmpp_iq:get_payload(IQ),
-    process_iq(#params{from=From, ns=case Payload of
-        undefined ->
-            undefined;
-        _ ->
-            exmpp_xml:get_ns_as_atom(Payload)
-    end, type=Type, iq=IQ, payload=Payload}).
+    process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
 
 -spec process_iq( Params::#params{} ) -> ok.
 

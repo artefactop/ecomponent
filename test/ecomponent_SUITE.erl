@@ -5,13 +5,16 @@
 -include_lib("exmpp/include/exmpp_client.hrl").
 -include("../include/ecomponent.hrl").
 
--export([all/0]).
+-export([suite/0, all/0]).
 -export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([
     config_test/1, ping_test/1, disco_test/1,
     forward_response_module_test/1,forward_ns_in_set_test/1,
     save_id_expired_test/1, coutdown_test/1
 ]).
+
+suite() ->
+    [{ct_hooks,[cth_junit]},{timetrap,{seconds,30}}].
 
 all() -> 
     [

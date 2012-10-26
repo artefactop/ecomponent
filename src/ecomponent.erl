@@ -86,11 +86,15 @@ init([]) ->
     {stop, Reason::any(), State::#state{}}.
 
 handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    NS = exmpp_iq:get_payload_ns_as_atom(IQ),
+    spawn(metrics, notify_throughput_iq, [Type, NS]),
     case mod_monitor:accept(exmpp_jid:to_list(Node, Domain), MaxPerPeriod, PeriodSeconds) of
         true ->
-            spawn(iq_handler, pre_process_iq, [Type, IQ, From]),
+            spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+            spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From]),
             {noreply, State, get_countdown(State)};
         false ->
+            spawn(metrics, notify_dropped_iq, [Type, NS]),
             {noreply, State, get_countdown(State)}
     end;
 
@@ -107,9 +111,11 @@ handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
     Packet = case Kind of
         request ->
             P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID),
+            spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(P), NS]),
             save_id(ID, NS, P, App),
             P;
         _ -> 
+            spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(NewPacket)]),
             NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
@@ -236,6 +242,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-spec init_metrics() -> ok.
+
+init_metrics() ->
+    metrics:init().
+
 -spec reset_countdown(State::#state{}) -> #state{}.
 
 reset_countdown(State) ->
@@ -272,6 +283,7 @@ configure() ->
     Processors = proplists:get_value(processors, Conf, []),
 
     mod_monitor:init(WhiteList),
+    init_metrics(),
     prepare_processors(Processors),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     {ok, reset_countdown(#state{
@@ -371,7 +383,7 @@ get_processor_by_ns(NS) ->
             end
     end.
 
--spec make_connection(JID::maybe_improper_list(), Pass::maybe_improper_list(), Server::maybe_improper_list(), Port::integer()) -> {R::string(), XmppCom::pid()}.
+-spec make_connection(JID::string(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
 
 make_connection(JID, Pass, Server, Port) -> 
     XmppCom = exmpp_component:start(),
