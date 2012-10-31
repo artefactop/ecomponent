@@ -30,6 +30,9 @@ init_per_suite(Config) ->
     meck:expect(lager, dispatch_log, fun(_Severity, _Metadata, Format, Args, _Size) ->
         error_logger:info_msg(Format, Args)
     end),
+    meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, Pid, _Traces, Format, Args, _TruncSize) ->
+        error_logger:info_msg(Format, Args)
+    end),
     
     error_logger:info_msg("INIT SUITE"),
     
