@@ -269,7 +269,8 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
 -spec configure() -> {ok, #state{}}.
 
 configure() ->
-    Conf = confetti:fetch(ecomponent_conf),
+    [FullConf] = confetti:fetch(mgmt_conf),
+    Conf = proplists:get_value(ecomponent, FullConf, []),
     Facility = proplists:get_value(syslog_facility, Conf, local7),
     Name = proplists:get_value(syslog_name, Conf, "ecomponent"),
     init_syslog(Facility, Name),

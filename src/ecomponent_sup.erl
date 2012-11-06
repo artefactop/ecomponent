@@ -50,4 +50,3 @@ init([]) ->
 
     {ok, {SupFlags, [AChild]}}.
 
-

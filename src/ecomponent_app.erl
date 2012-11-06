@@ -42,9 +42,6 @@ start() ->
     {ok, Pid::pid()} | {error, Reason::any()}.
 
 start(_StartType, _StartArgs) ->
-    {ok, _ProvPid} = confetti:use(ecomponent_conf, [
-        {location, {"ecomponent.conf", "conf"}}
-    ]),
     ecomponent_sup:start_link().
 
 %%--------------------------------------------------------------------
