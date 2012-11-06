@@ -40,7 +40,7 @@ init_per_suite(Config) ->
     meck:expect(syslog, open, fun(_Name, _Opts, _Facility) -> ok end),
     
     meck:new(confetti, [no_link]),
-    meck:expect(confetti, fetch, fun(_) -> [
+    meck:expect(confetti, fetch, fun(_) -> [[{ecomponent, [
         {syslog_name, "ecomponent" },
         {jid, "ecomponent.test" },
         {server, "localhost" },
@@ -61,7 +61,7 @@ init_per_suite(Config) ->
         {processors, [
             {default, {mod, dummy}}
         ]}
-    ] end),
+    ]}]] end),
     
     meck:new(exmpp_component, [no_link]),
     meck:expect(exmpp_component, start, fun() -> self() end),
@@ -85,7 +85,7 @@ end_per_suite(_Config) ->
 init_per_testcase(config_test, Config) ->
     Config;
 init_per_testcase(save_id_expired_test, Config) ->
-    meck:expect(confetti, fetch, fun(_) -> [
+    meck:expect(confetti, fetch, fun(_) -> [[{ecomponent, [
         {syslog_name, "ecomponent" },
         {jid, "ecomponent.test" },
         {server, "localhost" },
@@ -107,7 +107,7 @@ init_per_testcase(save_id_expired_test, Config) ->
             {default, {mod, dummy}}
         ]},
         {request_timeout, 2}
-    ] end),
+    ]}]] end),
     {ok, _Pid} = ecomponent:start_link(),
     Config;
 init_per_testcase(_, Config) ->
