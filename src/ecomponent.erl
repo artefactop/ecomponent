@@ -98,7 +98,10 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
             {noreply, State, get_countdown(State)}
     end;
 
-handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+handle_info({send, OPacket, NS, App}, State) ->
+    handle_info({send, OPacket, NS, App, true}, State);
+
+handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=State) ->
     ID = gen_id(),
     Kind = exmpp_iq:get_kind(OPacket),
     From = exmpp_stanza:get_sender(OPacket),
@@ -109,6 +112,10 @@ handle_info({send, OPacket, NS, App}, #state{jid=JID, xmppCom=XmppCom}=State) ->
             OPacket
     end,
     Packet = case Kind of
+        request when Reply =:= false ->
+            P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID),
+            spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(P), NS]),
+            P;
         request ->
             P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID),
             spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(P), NS]),
@@ -429,16 +436,23 @@ unprepare_id([H|T]) -> [H|unprepare_id(T)].
 send(Packet, App) ->
     Payload = exmpp_iq:get_payload(Packet),
     NS = exmpp_xml:get_ns_as_atom(Payload),
-    send(Packet, NS, App).
+    send(Packet, NS, App, true).
 
 -spec send(Packet::term(), NS::atom(), App::atom()) -> ok.
 
 send(Packet, NS, App) ->
-    ?MODULE ! {send, Packet, NS, App},
+    send(Packet, NS, App, true).
+
+-spec send(Packet::term(), NS::atom(), App::atom(), Reply::boolean()) -> ok.
+
+send(Packet, NS, App, Reply) ->
+    ?MODULE ! {send, Packet, NS, App, Reply},
     ok.
 
 -spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().
 
+is_allowed(Type, NS, {Node,Domain,Res}, State) when is_list(Domain) ->
+    is_allowed(Type, NS, {Node,list_to_binary(Domain),Res}, State);
 is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
     is_allowed(NS, Domain, As);
 is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
