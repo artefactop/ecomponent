@@ -51,7 +51,7 @@
 }).
 
 %% API
--export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, send/3, send/2, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
+-export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, send/4, send/3, send/2, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
 
 %% gen_server callbacks
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
