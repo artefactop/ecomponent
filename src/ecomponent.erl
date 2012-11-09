@@ -115,16 +115,16 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=St
     Packet = case exmpp_stanza:get_id(NewPacket) of
         undefined ->
             ID = gen_id(),
-            P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID),
+            P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
         _ -> 
             NewPacket
-    end;
+    end,
     case Kind of
         request when Reply =:= false ->
             spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(Packet), NS]);
         request ->
             spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(Packet), NS]),
-            save_id(exmpp_stanza:get_id(Packet), NS, P, App);
+            save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
             spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
     end,
