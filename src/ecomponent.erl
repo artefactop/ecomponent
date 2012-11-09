@@ -10,6 +10,7 @@
 
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
+-include_lib("confetti/include/confetti.hrl").
 -include("../include/ecomponent.hrl").
 
 -type jid() :: { Name::string(), Server::string(), Resource::string() }.
@@ -278,8 +279,7 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
 -spec configure() -> {ok, #state{}}.
 
 configure() ->
-    [FullConf] = confetti:fetch(mgmt_conf),
-    Conf = proplists:get_value(ecomponent, FullConf, []),
+    Conf = ?FETCH(mgmt_conf, ecomponent, []),
     Facility = proplists:get_value(syslog_facility, Conf, local7),
     Name = proplists:get_value(syslog_name, Conf, "ecomponent"),
     init_syslog(Facility, Name),
