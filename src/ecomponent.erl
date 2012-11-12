@@ -115,7 +115,7 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=St
     Packet = case exmpp_stanza:get_id(NewPacket) of
         undefined ->
             ID = gen_id(),
-            P = exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
+            exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
         _ -> 
             NewPacket
     end,
