@@ -491,6 +491,8 @@ syslog(Level, Message) when is_list(Message) ->
     end,
     syslog:log(Level, Priority ++ Message).
 
+-spec syslog(Type::string(), Level::levels(), Message::string()) -> ok.
+
 %% Level: emerg, alert, crit, err, warning, notice, info, debug
 syslog(Type, Level, Message) when is_binary(Message) ->
     syslog(Type, Level, erlang:binary_to_list(Message));
