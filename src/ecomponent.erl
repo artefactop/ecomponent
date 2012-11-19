@@ -508,4 +508,4 @@ syslog(Type, Level, Message) when is_list(Message) ->
         debug -> "DEBUG ";
         _ -> ""
     end,
-    syslog:log(Level, Type ++ " " + Priority ++ Message).
+    syslog:log(Level, Type ++ " " ++ Priority ++ Message).
