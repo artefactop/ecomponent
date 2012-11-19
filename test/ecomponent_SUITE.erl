@@ -14,7 +14,7 @@
 ]).
 
 suite() ->
-    [{ct_hooks,[cth_junit]},{timetrap,{seconds,30}}].
+    [{ct_hooks,[{cth_junit, [{path, "junit_ecomponent.xml"}]}]},{timetrap,{seconds,30}}].
 
 all() -> 
     [

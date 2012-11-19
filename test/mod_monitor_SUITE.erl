@@ -3,7 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include("../include/ecomponent.hrl").
 
--export([all/0]).
+-export([all/0, suite/0]).
 -export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([init_test/1, accept_test/1]).
 
@@ -15,6 +15,9 @@
 
 all() -> 
     [init_test, accept_test].
+
+suite() ->
+    [{ct_hooks,[{cth_junit, [{path, "junit_mod_monitor.xml"}]}]},{timetrap,{seconds,30}}].
 
 init_per_suite(Config) ->
     application:start(compiler),
