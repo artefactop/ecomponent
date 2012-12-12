@@ -55,7 +55,7 @@
 }).
 
 %% API
--export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, get_message_processor/0, send/4, send/3, send/2, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
+-export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, get_message_processor/0, send/4, send/3, send/2, send_message/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
 
 %% gen_server callbacks
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -139,6 +139,26 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=St
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
             spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
+    end,
+    lager:debug("Sending packet ~p",[Packet]),
+    exmpp_component:send_packet(XmppCom, Packet),
+    {noreply, State, get_countdown(State)};
+
+handle_info({send_message, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+
+    From = exmpp_stanza:get_sender(OPacket),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
+        _ ->
+            OPacket
+    end,
+    Packet = case exmpp_stanza:get_id(NewPacket) of
+        undefined ->
+            ID = gen_id(),
+            exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
+        _ -> 
+            NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
     exmpp_component:send_packet(XmppCom, Packet),
@@ -476,6 +496,12 @@ send(Packet, NS, App) ->
 
 send(Packet, NS, App, Reply) ->
     ?MODULE ! {send, Packet, NS, App, Reply},
+    ok.
+
+-spec send_message(Packet::term()) -> ok.
+
+send_message(Packet) ->
+    ?MODULE ! {send_message, Packet},
     ok.
 
 -spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().
