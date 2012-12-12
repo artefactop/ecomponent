@@ -44,10 +44,9 @@ init([]) ->
     Type = worker,
 
     AChild = {ecomponent, {ecomponent, start_link, []},
-	      Restart, Shutdown, Type, [ecomponent]},
-
+        Restart, Shutdown, Type, [ecomponent]},
+      
     %%io:format("Application Restart Policy: ~p~n",[Restart]),
 
     {ok, {SupFlags, [AChild]}}.
-
 

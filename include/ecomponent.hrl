@@ -1,7 +1,29 @@
 -define(NS_PROCESSOR, tab_ns_processor).
 
--record(matching, {id, ns, processor, tries, packet}).
--record(state, {xmppCom, jid, iqId, pass, server, port, whiteList, maxPerPeriod, periodSeconds, processors, maxTries, resendPeriod, requestTimeout, accessListSet, accessListGet}).
--record(params, {type, from, to, ns, payload, iq}).
--record(response, {ns, params}).
--record(message, {type, from, xmlel}).
+-record(matching, {
+    id :: string(),
+    ns :: atom(),
+    processor :: atom(),
+    tries :: integer(),
+    packet :: term()
+}).
+
+-record(params, {
+    type :: undefined | string(),
+    from :: ecomponent:jid(),
+    to :: ecomponent:jid(),
+    ns :: atom(),
+    payload :: term(),
+    iq :: term()
+}).
+
+-record(response, {
+    ns :: atom(),
+    params :: #params{}
+}).
+
+-record(message, {
+    type ::  undefined | string(),
+    from :: ecomponent:jid(),
+    xmlel :: term()
+}).

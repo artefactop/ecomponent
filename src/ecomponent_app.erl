@@ -9,6 +9,13 @@
 %%% Application callbacks
 %%%===================================================================
 
+-type start_type() :: 
+    normal | 
+    {takeover, Node::node()} | 
+    {failover, Node::node()}.
+
+-type start_args() :: term().
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -25,16 +32,17 @@
 %%      StartArgs = term()
 %% @end
 %%--------------------------------------------------------------------
+
+-spec start() -> {ok, Pid::pid()} | {error, Reason::any()}.
+
 start() ->
     application:start(ecomponent).
+    
+-spec start(StartType :: start_type(), StartArgs :: start_args() ) ->
+    {ok, Pid::pid()} | {error, Reason::any()}.
 
 start(_StartType, _StartArgs) ->
-    case ecomponent_sup:start_link() of
-        {ok, Pid} ->
-            {ok, Pid};
-        Error ->
-            Error
-    end.
+    ecomponent_sup:start_link().
 
 %%--------------------------------------------------------------------
 %% @private
@@ -46,6 +54,9 @@ start(_StartType, _StartArgs) ->
 %% @spec stop(State) -> void()
 %% @end
 %%--------------------------------------------------------------------
+
+-spec stop( State::any() ) -> ok.
+
 stop(_State) ->
     io:format("Terminating: ~p~n",[_State]),
     ok.

@@ -5,7 +5,9 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([process_iq/4, process_message/1]).
+-export([process_iq/1, process_message/1]).
+
+-spec process_iq( Params::#params{} ) -> ok.
 
 process_iq(#params{type="error", iq=IQ}) ->
     lager:info("Get error IQ: ~p", [IQ]),
@@ -18,8 +20,8 @@ process_iq(#params{type="result", iq=IQ}) ->
 process_iq(#params{iq=IQ}) ->
     lager:info("Unknown Request: ~p~n", [IQ]),
     Error = exmpp_iq:error(IQ, 'service-unavailable'),
-    ecomponent:send_packet(Error),
+    ecomponent:send(Error, ecomponent),
     ok.
 
 process_message(#message{}=Message) ->
-	lager:info("Message received: ~p", [Message]).
+    lager:info("Message received: ~p", [Message]).
