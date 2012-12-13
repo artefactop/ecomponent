@@ -26,10 +26,16 @@ The file `app.config` must have the following sections:
             {max_per_period, {{max_per_period}} },
             {period_seconds, {{period_seconds}} },
             {processors, [
-                {default, {mod, processor}}
-            ]}
+                {default, {mod:: atom(), processor:: atom()}} %% | {app:: atom(), processor:: atom()}
+                %% {namespace :: atom(), {app :: atom(), app_processor:: atom()}}
+            ]},
+            {message_processor, {mod:: atom(), mod_app_processor:: atom()}} %% | {app:: atom(), app_message_processor:: atom()}
         ]},
     
+        {folsom_cowboy,[
+            {port, 5565}
+        ]},
+
         {confetti, [
             {mgmt_config_location, {"app.config", "etc"}},
             %{plugins, [myapp_conf]},
