@@ -43,7 +43,7 @@
     maxPerPeriod = ?MAX_PER_PERIOD :: integer(),
     periodSeconds = ?PERIOD_SECONDS :: integer(),
     processors :: list(processor()),
-    message_processor :: processor(),
+    message_processor :: message_processor(),
     maxTries = ?MAX_TRIES :: integer(),
     resendPeriod = ?RESEND_PERIOD :: integer(),
     requestTimeout = ?REQUEST_TIMEOUT :: integer(),
