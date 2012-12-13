@@ -7,6 +7,8 @@
 %% API
 -export([pre_process_message/3]).
 
+-spec pre_process_message( undefined | string(), Message::term(), From::ecomponent:jid()) -> ok.
+
 pre_process_message(Type, Message, From) ->
     case Type of
         undefined ->
@@ -16,6 +18,8 @@ pre_process_message(Type, Message, From) ->
         _ -> 
             forward(#message{type=Type, from=From, xmlel=Message})
     end.
+
+-spec forward( Message::#message{} ) -> ok.
 
 forward(Message) ->
     case ecomponent:get_message_processor() of
@@ -34,6 +38,8 @@ forward(Message) ->
         Proc -> 
             lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Message])
     end.
+
+-spec forward_response( Message::#message{} ) -> ok.
 
 forward_response(#message{xmlel=Xmlel}=Message) ->
     ID = exmpp_stanza:get_id(Xmlel),
@@ -54,7 +60,4 @@ forward_response(#message{xmlel=Xmlel}=Message) ->
             end;
         _ -> 
             ok
-    end;
-
-forward_response(_) -> 
-    ok.
+    end.
