@@ -19,6 +19,8 @@
 
 -type app_processor() :: {app, App::atom()}.
 
+-type message_processor() :: mod_processor() | app_processor().
+
 -type processor() :: {Name::atom(), Value::(mod_processor() | app_processor())}.
 
 -type accesslist() :: Domains::list(binary()).
@@ -41,6 +43,7 @@
     maxPerPeriod = ?MAX_PER_PERIOD :: integer(),
     periodSeconds = ?PERIOD_SECONDS :: integer(),
     processors :: list(processor()),
+    message_processor :: message_processor(),
     maxTries = ?MAX_TRIES :: integer(),
     resendPeriod = ?RESEND_PERIOD :: integer(),
     requestTimeout = ?REQUEST_TIMEOUT :: integer(),
@@ -52,7 +55,7 @@
 }).
 
 %% API
--export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, send/4, send/3, send/2, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
+-export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1, get_message_processor/0, send/4, send/3, send/2, send_message/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
 
 %% gen_server callbacks
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -99,6 +102,15 @@ handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from
             {noreply, State, get_countdown(State)}
     end;
 
+handle_info(#received_packet{packet_type=message, type_attr=Type, raw_packet=Message, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
+        true ->
+            spawn(message_handler, pre_process_message, [Type, Message, From]),
+            {noreply, State};
+        _ ->
+            {noreply, State}
+    end;
+
 handle_info({send, OPacket, NS, App}, State) ->
     handle_info({send, OPacket, NS, App, true}, State);
 
@@ -127,6 +139,26 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=St
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
             spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
+    end,
+    lager:debug("Sending packet ~p",[Packet]),
+    exmpp_component:send_packet(XmppCom, Packet),
+    {noreply, State, get_countdown(State)};
+
+handle_info({send_message, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+
+    From = exmpp_stanza:get_sender(OPacket),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
+        _ ->
+            OPacket
+    end,
+    Packet = case exmpp_stanza:get_id(NewPacket) of
+        undefined ->
+            ID = gen_id(),
+            exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
+        _ -> 
+            NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
     exmpp_component:send_packet(XmppCom, Packet),
@@ -227,7 +259,10 @@ handle_call({set_xmpp_conf, JID, Pass, Server, Port}, _From, State) ->
 
 handle_call(get_xmpp_conf, _From, State) ->
     {reply, [State#state.jid, State#state.pass, State#state.server, State#state.port], State, get_countdown(State)};
-        
+
+ handle_call(message_processor, _From, State) ->
+    {reply, State#state.message_processor, State, get_countdown(State)};
+
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 
@@ -306,6 +341,7 @@ configure() ->
         maxPerPeriod = proplists:get_value(max_per_period, Conf, ?MAX_PER_PERIOD),
         periodSeconds = proplists:get_value(period_seconds, Conf, ?PERIOD_SECONDS),
         processors = proplists:get_value(processors, Conf),
+        message_processor = proplists:get_value(message_processor, Conf, undefined),
         maxTries = proplists:get_value(max_tries, Conf, ?MAX_TRIES),
         resendPeriod = proplists:get_value(resend_period, Conf, ?RESEND_PERIOD),
         requestTimeout = proplists:get_value(request_timeout, Conf, ?REQUEST_TIMEOUT),
@@ -393,6 +429,17 @@ get_processor_by_ns(NS) ->
             end
     end.
 
+-spec get_message_processor() -> undefined | mod_processor() | app_processor().
+
+get_message_processor() ->
+    PID = whereis(?MODULE),
+    case erlang:is_pid(PID) of
+        true ->
+            gen_server:call(PID, message_processor);
+        _ -> 
+            syslog(crit, io_lib:format("Process not Alive with Name: ~p~n", [?MODULE]))
+    end.
+
 -spec make_connection(JID::string(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
 
 make_connection(JID, Pass, Server, Port) -> 
@@ -449,6 +496,12 @@ send(Packet, NS, App) ->
 
 send(Packet, NS, App, Reply) ->
     ?MODULE ! {send, Packet, NS, App, Reply},
+    ok.
+
+-spec send_message(Packet::term()) -> ok.
+
+send_message(Packet) ->
+    ?MODULE ! {send_message, Packet},
     ok.
 
 -spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().

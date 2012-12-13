@@ -22,3 +22,8 @@
     params :: #params{}
 }).
 
+-record(message, {
+    type ::  undefined | string(),
+    from :: ecomponent:jid(),
+    xmlel :: term()
+}).
