@@ -45,19 +45,17 @@ forward_response(#message{xmlel=Xmlel}=Message) ->
     ID = exmpp_stanza:get_id(Xmlel),
     case ecomponent:get_processor(ID) of
         undefined ->
-            spawn(processor, process_message, [Message]), 
-            ok;
+            spawn(processor, process_message, [Message]);
         #matching{processor=undefined} ->
-            spawn(processor, process_message, [Message]),
-            ok;
+            spawn(processor, process_message, [Message]);
         #matching{processor=App} ->
             PID = whereis(App),
             case is_pid(PID) of 
                 true ->
-                    PID ! Message,
-                    ok;
-                _ -> ok
+                    PID ! Message;
+                _ -> 
+                    lager:warning("Process not Alive for Message: ~p~n", [Message])
             end;
-        _ -> 
-            ok
+        Proc ->
+            lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Message])
     end.

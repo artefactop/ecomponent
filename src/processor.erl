@@ -5,7 +5,7 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([process_iq/1, process_message/1]).
+-export([process_iq/1, process_message/1, process_presence/1]).
 
 -spec process_iq( Params::#params{} ) -> ok.
 
@@ -25,3 +25,6 @@ process_iq(#params{iq=IQ}) ->
 
 process_message(#message{}=Message) ->
     lager:info("Message received: ~p", [Message]).
+
+process_presence(#presence{}=Presence) ->
+    lager:info("Presence received: ~p", [Presence]).
