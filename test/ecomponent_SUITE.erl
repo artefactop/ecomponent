@@ -10,7 +10,8 @@
 -export([
     config_test/1, ping_test/1, disco_test/1,
     forward_response_module_test/1,forward_ns_in_set_test/1,
-    save_id_expired_test/1, coutdown_test/1
+    save_id_expired_test/1, coutdown_test/1,
+    message_test/1, presence_test/1
 ]).
 
 suite() ->
@@ -19,7 +20,8 @@ suite() ->
 all() -> 
     [
         config_test, ping_test, disco_test, forward_response_module_test,
-        forward_ns_in_set_test, save_id_expired_test, coutdown_test
+        forward_ns_in_set_test, save_id_expired_test, coutdown_test,
+        message_test, presence_test
     ].
 
 init_per_suite(Config) ->
@@ -60,7 +62,9 @@ init_per_suite(Config) ->
         {period_seconds, 8},
         {processors, [
             {default, {mod, dummy}}
-        ]}
+        ]},
+        {message_processor, {mod, dummy}},
+        {presence_processor, {mod, dummy}}
     ]}]] end),
     
     meck:new(exmpp_component, [no_link]),
@@ -106,6 +110,8 @@ init_per_testcase(save_id_expired_test, Config) ->
         {processors, [
             {default, {mod, dummy}}
         ]},
+        {message_processor, {mod, dummy}},
+        {presence_processor, {mod, dummy}},
         {request_timeout, 2}
     ]}]] end),
     {ok, _Pid} = ecomponent:start_link(),
@@ -128,6 +134,7 @@ config_test(_Config) ->
     {state, 
         Pid, "ecomponent.test", "secret",
         "localhost", 8899, [], 15, 8, [{default, {mod, dummy}}],
+        {mod, dummy}, {mod, dummy},
         3, 100, 10, [
             {'com.yuilop.push/message', [<<"bob.localhost">>]},
             {'com.yuilop.push/jingle-initiate', [<<"bob.localhost">>]},
@@ -137,6 +144,61 @@ config_test(_Config) ->
             {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
         ], [], local7, "ecomponent", _Timestamp} = State,
     ok.
+
+message_test(_Config) ->
+    Packet = #received_packet{
+        packet_type=message, type_attr="chat", raw_packet=
+            {xmlel, 'jabber:client', none, 'message',[
+                {<<"type">>,"chat"},
+                {<<"to">>,"alice.localhost"},
+                {<<"id">>,"test_bot"}
+            ], [
+                {xmlel, undefined, none, 'body', [],[{cdata, "ping"}]}
+            ]},
+        from={"bob","localhost",undefined}
+    },
+    Pid = self(),
+    meck:new(dummy),
+    meck:expect(dummy, process_message, fun(Message) ->
+        error_logger:info_msg("Received message: ~p~n", [Message]),
+        Pid ! Message
+    end),
+    ecomponent ! Packet,
+    receive
+        #message{type="chat", xmlel=Xmlel} ->
+            error_logger:info_msg("Message xmlel: ~p~n", [Xmlel]), 
+            ok;
+        Any ->
+            throw(Any)
+    after 1000 ->
+        throw("ERROR timeout")
+    end.
+
+presence_test(_Config) ->
+    Packet = #received_packet{
+        packet_type=presence, type_attr=undefined, raw_packet=
+            {xmlel, 'jabber:client', none, 'presence',[
+                {<<"to">>,"alice.localhost"},
+                {<<"id">>,"test_bot"}
+            ], []},
+        from={"bob","localhost",undefined}
+    },
+    Pid = self(),
+    meck:new(dummy),
+    meck:expect(dummy, process_presence, fun(Presence) ->
+        error_logger:info_msg("Received presence: ~p~n", [Presence]),
+        Pid ! Presence
+    end),
+    ecomponent ! Packet,
+    receive
+        #presence{xmlel=Xmlel} ->
+            error_logger:info_msg("Presence xmlel: ~p~n", [Xmlel]), 
+            ok;
+        Any ->
+            throw(Any)
+    after 1000 ->
+        throw("ERROR timeout")
+    end.
 
 ping_test(_Config) ->
     Packet = #received_packet{
@@ -215,7 +277,7 @@ forward_response_module_test(_Config) ->
             ]},
         from={"bob","localhost",undefined}
     },
-    timem:insert(Id, #matching{id="test_bot", ns='urn:itself', processor=self()}),
+    timem:insert(Id, #matching{id="forward_response_module_test", ns='urn:itself', processor=self()}),
     ecomponent ! Packet,
     receive
         #response{ns='urn:itself', params=Params} when is_record(Params,params) ->
@@ -292,9 +354,9 @@ save_id_expired_test(_Config) ->
 coutdown_test(_Config) ->
     St = {state, 
         undefined, undefined, undefined, undefined, undefined, 
-        undefined, undefined, undefined, undefined, undefined, 
-        undefined, 3, undefined, undefined, undefined, undefined,
-        undefined
+        undefined, undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, 3, undefined, undefined,
+        undefined, undefined, undefined
     },
     100 = ecomponent:get_countdown(St),
     State = ecomponent:reset_countdown(St),
