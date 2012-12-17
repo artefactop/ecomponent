@@ -27,3 +27,9 @@
     from :: ecomponent:jid(),
     xmlel :: term()
 }).
+
+-record(presence, {
+    type ::  undefined | string(),
+    from :: ecomponent:jid(),
+    xmlel :: term()
+}).
