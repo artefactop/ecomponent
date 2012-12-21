@@ -1,4 +1,5 @@
 -define(NS_PROCESSOR, tab_ns_processor).
+-define(WLIST_TABLE, mmwl).
 
 -record(matching, {
     id :: string(),
@@ -28,10 +29,20 @@
     timestamp = now() :: erlang:timestamp()
 }).
 
--define(WLIST_TABLE, mmwl).
-
 -record(timem, {
     id :: string(),
     packet :: term(),
     timestamp :: integer()
+}).
+
+-record(message, {
+    type ::  undefined | string(),
+    from :: ecomponent:jid(),
+    xmlel :: term()
+}).
+
+-record(presence, {
+    type ::  undefined | string(),
+    from :: ecomponent:jid(),
+    xmlel :: term()
 }).
