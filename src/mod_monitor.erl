@@ -1,32 +1,25 @@
-%%%-------------------------------------------------------------------
-%%% File        : mod_monitor.erl
-%%% Author      : Thiago Camargo <barata7@gmail.com>
-%%% Description : Generic Erlang/Mnesia Throttle
-%%% Provides:
-%%%             * Throttle Function based on Max Requests for an Interval for an ID(node)
-%%%
-%%% Created : 16 Apr 2010    by Thiago Camargo <barata7@gmail.com>
-%%%-------------------------------------------------------------------
-
+%%-------------------------------------------------------------------
+%% File        : mod_monitor.erl
+%% Author      : Thiago Camargo <barata7@gmail.com>
+%%             : Manuel Rubio <manuel@yuilop.com>
+%% Description : Generic Erlang/Mnesia Throttle
+%% Provides:
+%%   * Throttle Function based on Max Requests for an Interval for
+%%     an ID(node)
+%%
+%% Created : 16 Apr 2010 by Thiago Camargo <barata7@gmail.com>
+%% Updated : 21 Dec 2012 by Manuel Rubio <manuel@yuilop.com>
+%%-------------------------------------------------------------------
 -module(mod_monitor).
 
 -export([init/1, accept/3]).
 
--define(WLIST_TABLE, mmwl).
-
--record(monitor, {
-    id :: string(),
-    counter = 0 :: integer(),
-    timestamp = now() :: erlang:timestamp()
-}).
+-include("../include/ecomponent.hrl").
 
 -spec init( Whitelist :: list(binary()) ) -> ok.
 
 init(Whitelist) ->
     prepare_whitelist(Whitelist),
-    mnesia:create_schema([node()]),
-    mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
-    ok.
 
 -spec prepare_whitelist( L :: list(binary()) ) -> ok.
 
@@ -43,10 +36,7 @@ prepare_whitelist(L) ->
 -spec is_white( K :: string() ) -> boolean().
 
 is_white(K) ->
-    case ets:lookup(?WLIST_TABLE, K) of
-        [{K, allowed}] -> true;
-        _Any -> false
-    end.
+    [{K, allowed}] =:= ets:lookup(?WLIST_TABLE, K).
 
 -spec accept( Id :: string(), Max :: integer(), Period :: integer() ) -> boolean().
 
@@ -91,4 +81,3 @@ add_node(Id) ->
     N = #monitor{id=Id, counter=0, timestamp=now()},
     mnesia:dirty_write(monitor, N),
     N.
-

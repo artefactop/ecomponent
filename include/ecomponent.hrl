@@ -22,3 +22,16 @@
     params :: #params{}
 }).
 
+-record(monitor, {
+    id :: string(),
+    counter = 0 :: integer(),
+    timestamp = now() :: erlang:timestamp()
+}).
+
+-define(WLIST_TABLE, mmwl).
+
+-record(timem, {
+    id :: string(),
+    packet :: term(),
+    timestamp :: integer()
+}).

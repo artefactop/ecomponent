@@ -78,7 +78,6 @@ stop() ->
 
 init([]) ->
     lager:info("Loading Application eComponent", []),
-    timem:init(),
     configure().
 
 -spec handle_info(Msg::any(), State::#state{}) ->
@@ -291,6 +290,28 @@ configure() ->
     Port = proplists:get_value(port, Conf),
     WhiteList = proplists:get_value(whitelist, Conf, []),
     Processors = proplists:get_value(processors, Conf, []),
+
+    [ net_kernel:connect_node(X) || X <- proplists:get_value(mnesia_nodes, Conf, []) ],
+
+    case mnesia:create_schema([node()]) of
+        ok ->
+            Slave = lists:any(fun(X) ->
+                {ok, [node()]} = rpc:call(X, mnesia, change_config, [extra_db_nodes, [node()]])
+            end, nodes()),
+            case Slave of
+                true ->
+                    mnesia:change_table_copy_type(schema, node(), ram_copies),
+                    mnesia:add_table_copy(monitor, node(), ram_copies),
+                    mnesia:add_table_copy(timem, node(), ram_copies),
+                    ok;
+                false ->
+                    mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
+                    mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+                    ok
+            end;
+        {error, {node(), {already_exists, node()}}} ->
+            ok
+    end,
 
     mod_monitor:init(WhiteList),
     init_metrics(),
