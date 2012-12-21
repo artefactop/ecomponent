@@ -29,7 +29,8 @@ The file `app.config` must have the following sections:
                 {default, {mod:: atom(), processor:: atom()}} %% | {app:: atom(), processor:: atom()}
                 %% {namespace :: atom(), {app :: atom(), app_processor:: atom()}}
             ]},
-            {message_processor, {mod:: atom(), mod_app_processor:: atom()}} %% | {app:: atom(), app_message_processor:: atom()}
+            {message_processor, {mod:: atom(), mod_app_processor:: atom()}} %% | {app:: atom(), app_message_processor:: atom()},
+            {mnesia_nodes, [Node::atom()]}
         ]},
     
         {folsom_cowboy,[

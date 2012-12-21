@@ -60,7 +60,8 @@
 %% API
 -export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1,
         get_message_processor/0, get_presence_processor/0, send/4, send/3, send/2, send_message/1,
-        send_presence/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1]).
+        send_presence/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
+        init_mnesia/0]).
 
 %% gen_server callbacks
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -345,6 +346,35 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
             100
     end.
 
+-spec init_mnesia() -> ok.
+
+init_mnesia() ->
+    Node = node(),
+    case mnesia:create_schema([node()]) of
+        ok ->
+            Slave = lists:any(fun(X) ->
+                {ok, [Node]} =:= rpc:call(X, mnesia, change_config, [extra_db_nodes, [Node]])
+            end, nodes()),
+            case Slave of
+                true ->
+                    mnesia:start(),
+                    mnesia:change_table_copy_type(schema, node(), ram_copies),
+                    mnesia:add_table_copy(monitor, node(), ram_copies),
+                    mnesia:add_table_copy(timem, node(), ram_copies),
+                    ok;
+                false ->
+                    mnesia:start(),
+                    mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
+                    mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+                    ok
+            end;
+        {error, {Node, {already_exists, Node}}} ->
+            mnesia:start(),
+            mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
+            mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+            ok
+    end.
+
 -spec configure() -> {ok, #state{}}.
 
 configure() ->
@@ -363,26 +393,7 @@ configure() ->
 
     [ net_kernel:connect_node(X) || X <- proplists:get_value(mnesia_nodes, Conf, []) ],
 
-    case mnesia:create_schema([node()]) of
-        ok ->
-            Slave = lists:any(fun(X) ->
-                {ok, [node()]} = rpc:call(X, mnesia, change_config, [extra_db_nodes, [node()]])
-            end, nodes()),
-            case Slave of
-                true ->
-                    mnesia:change_table_copy_type(schema, node(), ram_copies),
-                    mnesia:add_table_copy(monitor, node(), ram_copies),
-                    mnesia:add_table_copy(timem, node(), ram_copies),
-                    ok;
-                false ->
-                    mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
-                    mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
-                    ok
-            end;
-        {error, {node(), {already_exists, node()}}} ->
-            ok
-    end,
-
+    init_mnesia(),
     mod_monitor:init(WhiteList),
     init_metrics(),
     prepare_processors(Processors),

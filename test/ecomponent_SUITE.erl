@@ -78,12 +78,12 @@ init_per_suite(Config) ->
 
 end_per_suite(_Config) ->
     error_logger:info_msg("END SUITE"),
+    mnesia:stop(),
     
     meck:unload(syslog),
     meck:unload(confetti),
     meck:unload(exmpp_component),
     meck:unload(lager),
-    mnesia:stop(),
     ok.
 
 init_per_testcase(config_test, Config) ->

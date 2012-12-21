@@ -1,6 +1,9 @@
 -module(timem).
 
--export([init/0, insert/2, remove/1, tm/1, expired/1, remove_expired/1]).
+-export([insert/2, remove/1, tm/1, expired/1, remove_expired/1]).
+
+-include("../include/ecomponent.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -spec insert(K::binary(), V::term()) -> boolean().
     

@@ -19,7 +19,7 @@
 -spec init( Whitelist :: list(binary()) ) -> ok.
 
 init(Whitelist) ->
-    prepare_whitelist(Whitelist),
+    prepare_whitelist(Whitelist).
 
 -spec prepare_whitelist( L :: list(binary()) ) -> ok.
 

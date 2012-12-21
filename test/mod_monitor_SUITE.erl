@@ -7,7 +7,6 @@
 -export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([init_test/1, accept_test/1]).
 
--define(WLIST_TABLE, mmwl).
 -define(WHITELIST, ["white@localhost"]).
 -define(WHITE, [{monitor, "white@localhost", 0, now()}]).
 -define(BLACK, [{monitor, "black@localhost", 2, now()}]).
@@ -37,6 +36,7 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+    meck:unload(mnesia),
     application:stop(lager),
     application:stop(syntax_tools),
     application:stop(compiler),
