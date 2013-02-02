@@ -292,10 +292,10 @@ handle_call({set_xmpp_conf, JID, Pass, Server, Port}, _From, State) ->
 handle_call(get_xmpp_conf, _From, State) ->
     {reply, [State#state.jid, State#state.pass, State#state.server, State#state.port], State, get_countdown(State)};
 
- handle_call(message_processor, _From, State) ->
+handle_call(message_processor, _From, State) ->
     {reply, State#state.message_processor, State, get_countdown(State)};
 
- handle_call(presence_processor, _From, State) ->
+handle_call(presence_processor, _From, State) ->
     {reply, State#state.presence_processor, State, get_countdown(State)};
 
 handle_call(stop, _From, State) ->
