@@ -11,7 +11,8 @@
 
 pre_process_iq(Type, IQ, NS, From) ->
     Payload = exmpp_iq:get_payload(IQ),
-    process_iq(#params{from=From, ns=NS, type=Type, iq=IQ, payload=Payload}).
+    To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(IQ)),
+    process_iq(#params{from=From, to=To, ns=NS, type=Type, iq=IQ, payload=Payload}).
 
 -spec process_iq( Params::#params{} ) -> ok.
 
