@@ -36,7 +36,7 @@ process_iq(#params{type="set", ns=NS, iq=IQ, from=From}=Params) ->
             forward_ns(Params);
         false ->
             ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
-            ecomponent:send(exmpp_iq:error(IQ, 'bad-request'), NS, undefined)
+            ecomponent:send(exmpp_iq:error(IQ, 'forbidden'), NS, undefined)
     end;
 
 process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
@@ -45,7 +45,7 @@ process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
             forward_ns(Params);
         false ->
             ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
-            ecomponent:send(exmpp_iq:error(IQ, 'bad-request'), NS, undefined)
+            ecomponent:send(exmpp_iq:error(IQ, 'forbidden'), NS, undefined)
     end;
 
 process_iq(P) ->
