@@ -12,8 +12,8 @@
 pre_process_message(Type, Message, From) ->
     case Type of
         undefined ->
-            forward(#message{type=normal, from=From, xmlel=Message});
-        error ->
+            forward(#message{type="normal", from=From, xmlel=Message});
+        "error" ->
             forward_response(#message{type=Type, from=From, xmlel=Message}); 
         _ -> 
             forward(#message{type=Type, from=From, xmlel=Message})

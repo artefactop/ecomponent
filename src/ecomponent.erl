@@ -61,7 +61,7 @@
 -export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1,
         get_message_processor/0, get_presence_processor/0, send/4, send/3, send/2, send_message/1,
         send_presence/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
-        init_mnesia/0]).
+        init_mnesia/1]).
 
 %% gen_server callbacks
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -346,9 +346,9 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
             100
     end.
 
--spec init_mnesia() -> ok.
+-spec init_mnesia([Callbacks::fun(() -> [{Table::atom(), Type::atom(), [Fields::atom()]}])]) -> ok.
 
-init_mnesia() ->
+init_mnesia(Callbacks) ->
     Node = node(),
     case mnesia:create_schema([node()]) of
         ok ->
@@ -361,17 +361,32 @@ init_mnesia() ->
                     mnesia:change_table_copy_type(schema, node(), ram_copies),
                     mnesia:add_table_copy(monitor, node(), ram_copies),
                     mnesia:add_table_copy(timem, node(), ram_copies),
+                    lists:foreach(fun(Fun) ->
+                        lists:foreach(fun({Table, Type, _Fields}) ->
+                            mnesia:add_table_copy(Table, node(), Type)
+                        end, Fun())
+                    end, Callbacks),
                     ok;
                 false ->
                     mnesia:start(),
                     mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
                     mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+                    lists:foreach(fun(Fun) ->
+                        lists:foreach(fun({Table, _Type, Fields}) ->
+                            mnesia:create_table(Table, [{attributes, Fields}])
+                        end, Fun())
+                    end, Callbacks),
                     ok
             end;
         {error, {Node, {already_exists, Node}}} ->
             mnesia:start(),
             mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
             mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+            lists:foreach(fun(Fun) ->
+                lists:foreach(fun({Table, _Type, Fields}) ->
+                    mnesia:create_table(Table, [{attributes, Fields}])
+                end, Fun())
+            end, Callbacks),
             ok
     end.
 
@@ -393,7 +408,7 @@ configure() ->
 
     [ net_kernel:connect_node(X) || X <- proplists:get_value(mnesia_nodes, Conf, []) ],
 
-    init_mnesia(),
+    init_mnesia(proplists:get_value(mnesia_callback, Conf, [])),
     mod_monitor:init(WhiteList),
     init_metrics(),
     prepare_processors(Processors),

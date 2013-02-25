@@ -7,6 +7,7 @@
 -export([all/0, suite/0]).
 -export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([insert_and_remove_test/1, expired_test/1, remove_expired_test/1]).
+-export([mnesia_callback/0]).
 
 -define(UUID, list_to_binary(uuid:to_string(uuid:uuid4()))).
 
@@ -15,6 +16,9 @@
         tries=3, packet=""
 }).
 
+mnesia_callback() ->
+    [].
+
 all() -> 
     [insert_and_remove_test, expired_test, remove_expired_test].
 
@@ -22,7 +26,7 @@ suite() ->
     [{ct_hooks,[{cth_junit, [{path, "junit_timem.xml"}]}]},{timetrap,{seconds,30}}].
 
 init_per_suite(_Config) ->
-    ecomponent:init_mnesia(),
+    ecomponent:init_mnesia([fun timem_SUITE:mnesia_callback/0]),
     [{uuids, [?UUID, ?UUID, ?UUID, ?UUID, ?UUID]}].
 
 end_per_suite(_Config) ->

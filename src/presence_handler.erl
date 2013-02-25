@@ -11,7 +11,7 @@
 
 pre_process_presence(Type, Presence, From) ->
     case Type of
-        error ->
+        "error" ->
             forward_response(#presence{type=Type, from=From, xmlel=Presence}); 
         _ -> 
             forward(#presence{type=Type, from=From, xmlel=Presence})
