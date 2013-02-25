@@ -73,13 +73,13 @@ init_per_suite(Config) ->
     meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
     meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
     meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
-    
+    application:start(exmpp),
     Config.
 
 end_per_suite(_Config) ->
     error_logger:info_msg("END SUITE"),
     mnesia:stop(),
-    
+    application:stop(exmpp),
     meck:unload(syslog),
     meck:unload(confetti),
     meck:unload(exmpp_component),
