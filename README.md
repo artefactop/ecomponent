@@ -70,7 +70,8 @@ The example file `app.config` have the following sections:
             {mnesia_callback, [Callback::{M::atom(),F::atom(),A::[term()]}]},
             {features, [
                 <<"jabber:iq:last">> | [binary()]
-            ]}
+            ]},
+            {disco_info, boolean()}
         ]},
     
         {folsom_cowboy,[

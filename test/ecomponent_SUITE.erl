@@ -143,7 +143,7 @@ config_test(_Config) ->
             {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
             {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
             {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
-        ], [], local7, "ecomponent", _Timestamp, _Features} = State,
+        ], [], local7, "ecomponent", _Timestamp, _Features, _DiscoInfo} = State,
     ok.
 
 message_test(_Config) ->
@@ -365,7 +365,7 @@ coutdown_test(_Config) ->
         undefined, undefined, undefined, undefined, undefined, 
         undefined, undefined, undefined, undefined, undefined,
         undefined, undefined, undefined, 3, undefined, undefined,
-        undefined, undefined, undefined, undefined
+        undefined, undefined, undefined, [], true
     },
     100 = ecomponent:get_countdown(St),
     State = ecomponent:reset_countdown(St),
