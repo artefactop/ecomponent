@@ -15,7 +15,8 @@
     to :: ecomponent:jid(),
     ns :: atom(),
     payload :: term(),
-    iq :: term()
+    iq :: term(),
+    features = [] :: [binary()]
 }).
 
 -record(response, {

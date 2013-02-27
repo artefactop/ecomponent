@@ -26,7 +26,7 @@ suite() ->
     [{ct_hooks,[{cth_junit, [{path, "junit_timem.xml"}]}]},{timetrap,{seconds,30}}].
 
 init_per_suite(_Config) ->
-    ecomponent:init_mnesia([], [fun timem_SUITE:mnesia_callback/0]),
+    ecomponent:init_mnesia([], [{timem_SUITE, mnesia_callback, []}]),
     [{uuids, [?UUID, ?UUID, ?UUID, ?UUID, ?UUID]}].
 
 end_per_suite(_Config) ->

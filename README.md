@@ -67,7 +67,10 @@ The example file `app.config` have the following sections:
             {message_processor, message_processor},
             {presence_processor, presence_processor},
             {mnesia_nodes, [Node::atom()]},
-            {mnesia_callback, [Callback::{M::atom(),F::atom(),A::[term()]}]}
+            {mnesia_callback, [Callback::{M::atom(),F::atom(),A::[term()]}]},
+            {features, [
+                <<"jabber:iq:last">> | [binary()]
+            ]}
         ]},
     
         {folsom_cowboy,[

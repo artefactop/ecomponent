@@ -64,7 +64,8 @@ init_per_suite(Config) ->
             {default, {mod, dummy}}
         ]},
         {message_processor, {mod, dummy}},
-        {presence_processor, {mod, dummy}}
+        {presence_processor, {mod, dummy}},
+        {features, [<<"jabber:iq:last">>]}
     ]}]] end),
     
     meck:new(exmpp_component, [no_link]),
@@ -142,7 +143,7 @@ config_test(_Config) ->
             {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
             {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
             {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
-        ], [], local7, "ecomponent", _Timestamp} = State,
+        ], [], local7, "ecomponent", _Timestamp, _Features} = State,
     ok.
 
 message_test(_Config) ->
@@ -239,7 +240,11 @@ disco_test(_Config) ->
                 {<<"to">>,"alice.localhost"},
                 {<<"id">>,"test_bot"}
             ], [
-                {xmlel, 'http://jabber.org/protocol/disco#info', none, 'query', [],[]}
+                {xmlel, 'http://jabber.org/protocol/disco#info', none, 'query', [],[
+                    {xmlel, undefined, none, 'feature', [
+                        {<<"var">>, <<"jabber:iq:last">>}
+                    ], []}
+                ]}
             ]},
         from={"bob","localhost",undefined}
     },
@@ -255,7 +260,11 @@ disco_test(_Config) ->
             {<<"id">>,"test_bot"},
             {<<"from">>,"alice.localhost"}
         ],[
-            {xmlel, 'http://jabber.org/protocol/disco#info', [], 'query', [], []}
+            {xmlel, 'http://jabber.org/protocol/disco#info', [], 'query', [],[
+                {xmlel, undefined, [], 'feature', [
+                    {xmlattr, undefined, <<"var">>, <<"jabber:iq:last">>}
+                ], []}
+            ]}
         ]} -> 
             ok;
         Any ->
@@ -356,7 +365,7 @@ coutdown_test(_Config) ->
         undefined, undefined, undefined, undefined, undefined, 
         undefined, undefined, undefined, undefined, undefined,
         undefined, undefined, undefined, 3, undefined, undefined,
-        undefined, undefined, undefined
+        undefined, undefined, undefined, undefined
     },
     100 = ecomponent:get_countdown(St),
     State = ecomponent:reset_countdown(St),

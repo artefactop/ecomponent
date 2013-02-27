@@ -54,7 +54,8 @@
     accessListGet = [] :: accesslist(),
     syslogFacility = ?SYSLOG_FACILITY :: atom(),
     syslogName = ?SYSLOG_NAME :: string(),
-    timeout = undefined :: integer()
+    timeout = undefined :: integer(),
+    features = [] :: [binary()]
 }).
 
 %% API
@@ -94,13 +95,15 @@ init([]) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
 
-handle_info(#received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+handle_info(
+        #received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, 
+        #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, features=Features}=State) ->
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
     spawn(metrics, notify_throughput_iq, [Type, NS]),
     case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
         true ->
             spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
-            spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From]),
+            spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From, Features]),
             {noreply, State, get_countdown(State)};
         false ->
             spawn(metrics, notify_dropped_iq, [Type, NS]),
@@ -424,7 +427,8 @@ configure() ->
         resendPeriod = proplists:get_value(resend_period, Conf, ?RESEND_PERIOD),
         requestTimeout = proplists:get_value(request_timeout, Conf, ?REQUEST_TIMEOUT),
         accessListSet = proplists:get_value(access_list_set, Conf, []),
-        accessListGet = proplists:get_value(access_list_get, Conf, [])
+        accessListGet = proplists:get_value(access_list_get, Conf, []),
+        features = proplists:get_value(features, Conf, [])
     })}.
 
 -spec gen_id() -> binary().

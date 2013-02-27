@@ -5,14 +5,14 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([pre_process_iq/4]).
+-export([pre_process_iq/5]).
 
--spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid()) -> ok.
+-spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid(), Features::[binary()]) -> ok.
 
-pre_process_iq(Type, IQ, NS, From) ->
+pre_process_iq(Type, IQ, NS, From, Features) ->
     Payload = exmpp_iq:get_payload(IQ),
     To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(IQ)),
-    process_iq(#params{from=From, to=To, ns=NS, type=Type, iq=IQ, payload=Payload}).
+    process_iq(#params{from=From, to=To, ns=NS, type=Type, iq=IQ, payload=Payload, features=Features}).
 
 -spec process_iq( Params::#params{} ) -> ok.
 
@@ -20,8 +20,14 @@ process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
     Result = exmpp_iq:result(IQ),
     ecomponent:send(Result, ?NS_PING, undefined);
 
-process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO}) ->
-    Result = exmpp_iq:result(IQ, exmpp_xml:element(?NS_DISCO_INFO, 'query', [], [])),
+process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO, features=Features}) ->
+    Result = exmpp_iq:result(IQ, exmpp_xml:element(?NS_DISCO_INFO, 'query', [],
+        lists:map(fun(Feature) ->
+            exmpp_xml:element(undefined, 'feature', [
+                exmpp_xml:attribute(<<"var">>, Feature) 
+            ], [])  
+        end, Features)
+    )),
     ecomponent:send(Result, ?NS_DISCO_INFO, undefined);
 
 process_iq(#params{type="error"}=Params) ->
