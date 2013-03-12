@@ -16,7 +16,8 @@
                   ranch,
                   xmerl,
                   cowboy,
-                  folsom_cowboy
+                  folsom_cowboy,
+                  uuid
                  ]},
   {mod, { ecomponent_app, []}},
   {env, []}
