@@ -262,11 +262,11 @@ handle_cast(_Msg, State) ->
     {stop, Reason::any(), State::#state{}}.
 
 handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
-    lager:info("Received Call: ~p~n", [Info]),
+    lager:debug("Received Call: ~p~n", [Info]),
     {reply, is_allowed(set, NS, Jid, State), State, get_countdown(State)};
 
 handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
-    lager:info("Received Call: ~p~n", [Info]),
+    lager:debug("Received Call: ~p~n", [Info]),
     {reply, is_allowed(get, NS, Jid, State), State, get_countdown(State)};
 
 handle_call(reconnect, _From, State) ->
