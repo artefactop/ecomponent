@@ -20,12 +20,12 @@ init() ->
     end,
     ok.
 
--spec notify_throughput_iq(Type :: atom(), NS :: atom()) ->
+-spec notify_throughput_iq(IO::atom(), Type :: atom(), NS :: atom()) ->
     ok | {error, Name :: atom(), nonexistent_metric} |
     {error, Type :: atom(), unsupported_metric_type}.
 
-notify_throughput_iq(Type, NS) ->
-    Name = concat("throughput_", concat(concat(Type, "_"), NS)),
+notify_throughput_iq(IO, Type, NS) ->
+    Name = concat("throughput_", concat(IO, concat("_", concat(concat(Type, "_"), NS)))),
     case ets:member(metrics, Name) of
         false ->
             folsom_metrics:new_spiral(Name), %% last 60 sec

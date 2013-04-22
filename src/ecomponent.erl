@@ -103,7 +103,7 @@ handle_info(
             features=Features,disco_info=DiscoInfo
         }=State) ->
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
-    spawn(metrics, notify_throughput_iq, [Type, NS]),
+    spawn(metrics, notify_throughput_iq, [in, Type, NS]),
     case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
         true ->
             spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
@@ -159,9 +159,9 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=St
     end,
     case Kind of
         request when Reply =:= false ->
-            spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(Packet), NS]);
+            spawn(metrics, notify_throughput_iq, [out, exmpp_iq:get_type(Packet), NS]);
         request ->
-            spawn(metrics, notify_throughput_iq, [exmpp_iq:get_type(Packet), NS]),
+            spawn(metrics, notify_throughput_iq, [out, exmpp_iq:get_type(Packet), NS]),
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
             spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
