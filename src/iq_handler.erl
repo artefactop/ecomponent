@@ -46,7 +46,7 @@ process_iq(#params{type="set", ns=NS, iq=IQ, from=From}=Params) ->
     end;
 
 process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
-    case gen_server:call(ecomponent, {access_list_set, NS, From}) of
+    case gen_server:call(ecomponent, {access_list_get, NS, From}) of
         true ->
             forward_ns(Params);
         false ->
