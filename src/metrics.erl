@@ -1,7 +1,7 @@
 -module(metrics).
 
 %% API
--export([init/0, notify_throughput_iq/2, set_iq_time/3, notify_resp_time/1, notify_dropped_iq/2]).
+-export([init/0, notify_throughput_iq/3, set_iq_time/3, notify_resp_time/1, notify_dropped_iq/2]).
 
 -spec init() -> ok.
 
