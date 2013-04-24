@@ -11,7 +11,8 @@
     config_test/1, ping_test/1, disco_test/1,
     forward_response_module_test/1,forward_ns_in_set_test/1,
     save_id_expired_test/1, coutdown_test/1,
-    message_test/1, presence_test/1
+    message_test/1, presence_test/1, access_list_get_test/1,
+    access_list_set_test/1
 ]).
 
 suite() ->
@@ -21,7 +22,7 @@ all() ->
     [
         config_test, ping_test, disco_test, forward_response_module_test,
         forward_ns_in_set_test, save_id_expired_test, coutdown_test,
-        message_test, presence_test
+        message_test, presence_test, access_list_get_test, access_list_get_test
     ].
 
 init_per_suite(Config) ->
@@ -51,12 +52,12 @@ init_per_suite(Config) ->
         {whitelist, [] }, %% throttle whitelist
         {access_list_get, []},
         {access_list_set, [
-            {'com.yuilop.push/message', [<<"bob.localhost">>]},
-            {'com.yuilop.push/jingle-initiate', [<<"bob.localhost">>]},
-            {'com.yuilop.push/jingle-terminate', [<<"bob.localhost">>]},
-            {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
-            {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
-            {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
         ]},
         {max_per_period, 15},
         {period_seconds, 8},
@@ -99,12 +100,12 @@ init_per_testcase(save_id_expired_test, Config) ->
         {whitelist, [] }, %% throttle whitelist
         {access_list_get, []},
         {access_list_set, [
-            {'com.yuilop.push/message', [<<"bob.localhost">>]},
-            {'com.yuilop.push/jingle-initiate', [<<"bob.localhost">>]},
-            {'com.yuilop.push/jingle-terminate', [<<"bob.localhost">>]},
-            {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
-            {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
-            {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
         ]},
         {max_per_period, 15},
         {period_seconds, 8},
@@ -137,12 +138,12 @@ config_test(_Config) ->
         "localhost", 8899, [], 15, 8, [{default, {mod, dummy}}],
         {mod, dummy}, {mod, dummy},
         3, 100, 10, [
-            {'com.yuilop.push/message', [<<"bob.localhost">>]},
-            {'com.yuilop.push/jingle-initiate', [<<"bob.localhost">>]},
-            {'com.yuilop.push/jingle-terminate', [<<"bob.localhost">>]},
-            {'com.yuilop.push/multimedia/files', [<<"bob.localhost">>]},
-            {'com.yuilop.push/multimedia/location', [<<"bob.localhost">>]},
-            {'com.yuilop.push/contacts', [<<"bob.localhost">>]}
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
         ], [], local7, "ecomponent", _Timestamp, _Features, _DiscoInfo} = State,
     ok.
 
@@ -377,3 +378,10 @@ coutdown_test(_Config) ->
     100 = ecomponent:get_countdown(State),
     ok.
 
+access_list_get_test(_Config) ->
+    Bob1 = { "", "bob1.localhost", "" },
+    true = gen_server:call(ecomponent, {access_list_get, 'com.ecomponent.ns/ns1', Bob1}).
+
+access_list_set_test(_Config) ->
+    Bob = { "", "bob.localhost", "" },
+    true = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob}).
