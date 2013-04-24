@@ -22,7 +22,7 @@ all() ->
     [
         config_test, ping_test, disco_test, forward_response_module_test,
         forward_ns_in_set_test, save_id_expired_test, coutdown_test,
-        message_test, presence_test, access_list_get_test, access_list_get_test
+        message_test, presence_test, access_list_get_test, access_list_set_test
     ].
 
 init_per_suite(Config) ->
@@ -384,4 +384,7 @@ access_list_get_test(_Config) ->
 
 access_list_set_test(_Config) ->
     Bob = { "", "bob.localhost", "" },
-    true = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob}).
+    Bob1 = { "", "bob1.localhost", "" },
+    true = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob}),
+    false = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob1}).
+
