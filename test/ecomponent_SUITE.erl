@@ -12,7 +12,7 @@
     forward_response_module_test/1,forward_ns_in_set_test/1,
     save_id_expired_test/1, coutdown_test/1,
     message_test/1, presence_test/1, access_list_get_test/1,
-    access_list_set_test/1
+    access_list_set_test/1, disco_muted_test/1
 ]).
 
 suite() ->
@@ -20,7 +20,7 @@ suite() ->
 
 all() -> 
     [
-        config_test, ping_test, disco_test, forward_response_module_test,
+        disco_muted_test, config_test, ping_test, disco_test, forward_response_module_test,
         forward_ns_in_set_test, save_id_expired_test, coutdown_test,
         message_test, presence_test, access_list_get_test, access_list_set_test
     ].
@@ -33,7 +33,7 @@ init_per_suite(Config) ->
     meck:expect(lager, dispatch_log, fun(_Severity, _Metadata, Format, Args, _Size) ->
         error_logger:info_msg(Format, Args)
     end),
-    meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, Pid, _Traces, Format, Args, _TruncSize) ->
+    meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, _Pid, _Traces, Format, Args, _TruncSize) ->
         error_logger:info_msg(Format, Args)
     end),
     
@@ -43,6 +43,29 @@ init_per_suite(Config) ->
     meck:expect(syslog, open, fun(_Name, _Opts, _Facility) -> ok end),
     
     meck:new(confetti, [no_link]),
+    
+    meck:new(exmpp_component, [no_link]),
+    meck:expect(exmpp_component, start, fun() -> self() end),
+    meck:expect(exmpp_component, stop, fun(_) -> ok end),
+    meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
+    meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
+    meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
+    application:start(exmpp),
+    Config.
+
+end_per_suite(_Config) ->
+    error_logger:info_msg("END SUITE"),
+    mnesia:stop(),
+    application:stop(exmpp),
+    meck:unload(syslog),
+    meck:unload(confetti),
+    meck:unload(exmpp_component),
+    meck:unload(lager),
+    ok.
+
+init_per_testcase(config_test, Config) ->
+    Config;
+init_per_testcase(disco_muted_test, Config) ->
     meck:expect(confetti, fetch, fun(_) -> [[{ecomponent, [
         {syslog_name, "ecomponent" },
         {jid, "ecomponent.test" },
@@ -66,29 +89,9 @@ init_per_suite(Config) ->
         ]},
         {message_processor, {mod, dummy}},
         {presence_processor, {mod, dummy}},
-        {features, [<<"jabber:iq:last">>]}
+        {disco_info, false}
     ]}]] end),
-    
-    meck:new(exmpp_component, [no_link]),
-    meck:expect(exmpp_component, start, fun() -> self() end),
-    meck:expect(exmpp_component, stop, fun(_) -> ok end),
-    meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
-    meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
-    meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
-    application:start(exmpp),
-    Config.
-
-end_per_suite(_Config) ->
-    error_logger:info_msg("END SUITE"),
-    mnesia:stop(),
-    application:stop(exmpp),
-    meck:unload(syslog),
-    meck:unload(confetti),
-    meck:unload(exmpp_component),
-    meck:unload(lager),
-    ok.
-
-init_per_testcase(config_test, Config) ->
+    {ok, _Pid} = ecomponent:start_link(),
     Config;
 init_per_testcase(save_id_expired_test, Config) ->
     meck:expect(confetti, fetch, fun(_) -> [[{ecomponent, [
@@ -120,6 +123,31 @@ init_per_testcase(save_id_expired_test, Config) ->
     Config;
 init_per_testcase(_, Config) ->
     error_logger:info_msg("INIT GENERIC TESTCASE"),
+    meck:expect(confetti, fetch, fun(_) -> [[{ecomponent, [
+        {syslog_name, "ecomponent" },
+        {jid, "ecomponent.test" },
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"},
+        {whitelist, [] }, %% throttle whitelist
+        {access_list_get, []},
+        {access_list_set, [
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
+        ]},
+        {max_per_period, 15},
+        {period_seconds, 8},
+        {processors, [
+            {default, {mod, dummy}}
+        ]},
+        {message_processor, {mod, dummy}},
+        {presence_processor, {mod, dummy}},
+        {features, [<<"jabber:iq:last">>]}
+    ]}]] end),
     {ok, _Pid} = ecomponent:start_link(),
     Config.
 
@@ -195,6 +223,49 @@ presence_test(_Config) ->
     receive
         #presence{xmlel=Xmlel} ->
             error_logger:info_msg("Presence xmlel: ~p~n", [Xmlel]), 
+            ok;
+        Any ->
+            throw(Any)
+    after 1000 ->
+        throw("ERROR timeout")
+    end.
+
+disco_muted_test(_Config) ->
+    DiscoPacket = #received_packet{
+        packet_type=iq, type_attr="get", raw_packet=
+            {xmlel, 'jabber:client', none, 'iq',[
+                {<<"type">>,"get"},
+                {<<"to">>,"ecomponent.test"},
+                {<<"id">>,"test_bot"}
+            ], [
+                {xmlel, 'http://jabber.org/protocol/disco#info', none, 'query', [],[]}
+            ]},
+        from={"bob","localhost",undefined}
+    },
+    Packet = #received_packet{
+        packet_type=iq, type_attr="get", raw_packet=
+            {xmlel, 'jabber:client', none, 'iq',[
+                {<<"type">>,"get"},
+                {<<"to">>,"alice.localhost"},
+                {<<"id">>,"test_bot"}
+            ], [
+                {xmlel, 'urn:xmpp:ping', none, 'ping', [],[]}
+            ]},
+        from={"bob","localhost",undefined}
+    },
+    Pid = self(),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        error_logger:info_msg("Sending Packet: ~p", [P]),
+        Pid ! P
+    end),
+    ecomponent ! DiscoPacket,
+    ecomponent ! Packet,
+    receive
+        {xmlel,'jabber:client',[],iq,[
+            {<<"type">>,"result"},
+            {<<"id">>,"test_bot"},
+            {<<"from">>,"alice.localhost"}
+        ],[]} -> 
             ok;
         Any ->
             throw(Any)

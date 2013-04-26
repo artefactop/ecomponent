@@ -107,11 +107,13 @@ handle_info(
     case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
         true ->
             spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
-            case DiscoInfo of
+            if
+                (DiscoInfo =:= false) andalso (?NS_DISCO_INFO =:= NS) ->
+                    lager:debug("Ignored by disco#info muted! NS=~p~n", [NS]),
+                    ignore;
                 true ->
-                    spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From, Features]);
-                _ ->
-                    ignore
+                    lager:debug("To process packet with NS=~p~n", [NS]),
+                    spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From, Features])
             end,
             {noreply, State, get_countdown(State)};
         false ->
