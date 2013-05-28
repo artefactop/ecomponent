@@ -10,7 +10,9 @@
     notify_resp_time/1, 
     notify_dropped_presence/1,
     notify_dropped_message/1,
-    notify_dropped_iq/2
+    notify_dropped_iq/2,
+
+    notify/2
 ]).
 
 -spec init() -> ok.
@@ -138,14 +140,32 @@ notify_dropped_iq(Type, NS) ->
     end,
     folsom_metrics:notify({Name, 1}).
 
--spec concat(S :: string() | atom(), A :: string() | atom()) -> atom().
+-spec concat(S :: string() | atom() | binary(), A :: string() | atom() | binary()) -> atom().
 
+concat(S, A) when is_binary(S) ->
+    concat(binary_to_list(S), A);
+concat(S, A) when is_binary(A) ->
+    concat(S, binary_to_list(A));
+concat(S, A) when is_atom(S) ->
+    concat(atom_to_list(S), A);
+concat(S, A) when is_atom(A) ->
+    concat(S, atom_to_list(A));
 concat(S, A) when is_list(S) andalso is_list(A) ->
-    erlang:list_to_atom(S ++ A);
-concat(S, A) when is_list(S) andalso is_atom(A) ->
-    erlang:list_to_atom(S ++ erlang:atom_to_list(A));
-concat(S, A) when is_atom(S) andalso is_atom(A) ->
-    erlang:list_to_atom(erlang:atom_to_list(S) ++ erlang:atom_to_list(A));
-concat(S, A) when is_atom(S) andalso is_list(A) ->
-    erlang:list_to_atom(erlang:atom_to_list(S) ++ A).
+    erlang:list_to_atom(S ++ A).
 
+
+-spec notify(Name :: string()) -> ok.
+
+notify(Name) ->
+    notify(Name, 1).
+
+-spec notify(Name :: string(), Value :: integer()) -> ok.
+
+notify(Name, Value) ->
+    case ets:member(metrics, Name) of 
+        false ->
+            folsom_metrics:new_spiral(Name), %% last 60 sec
+            ets:insert(metrics, {Name, 1});
+        _ -> true
+    end,
+    folsom_metrics:notify({Name, Value}).
