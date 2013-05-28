@@ -122,21 +122,27 @@ handle_info(
     end;
 
 handle_info(#received_packet{packet_type=message, type_attr=Type, raw_packet=Message, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    spawn(metrics, notify_throughput_message, [in, Type]),
     case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
         true ->
+            spawn(metrics, set_message_time, [exmpp_stanza:get_id(Message), Type]),
             spawn(message_handler, pre_process_message, [Type, Message, From]),
             {noreply, State};
         _ ->
+            spawn(metrics, notify_dropped_message, [Type]),
             {noreply, State}
     end;
 
 
 handle_info(#received_packet{packet_type=presence, type_attr=Type, raw_packet=Presence, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+    spawn(metrics, notify_throughput_presence, [in, Type]),
     case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
         true ->
+            spawn(metrics, set_presence_time, [exmpp_stanza:get_id(Presence), Type]),
             spawn(presence_handler, pre_process_presence, [Type, Presence, From]),
             {noreply, State};
         _ ->
+            spawn(metrics, notify_dropped_presence, [Type]),
             {noreply, State}
     end;
 
@@ -188,6 +194,7 @@ handle_info({send_message, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
             NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
+    spawn(metrics, notify_throughput_message, [out, exmpp_message:get_type(Packet)]),
     exmpp_component:send_packet(XmppCom, Packet),
     {noreply, State, get_countdown(State)};
 
@@ -208,6 +215,7 @@ handle_info({send_presence, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
             NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
+    spawn(metrics, notify_throughput_presence, [out, exmpp_presence:get_type(Packet)]),
     exmpp_component:send_packet(XmppCom, Packet),
     {noreply, State, get_countdown(State)};
 

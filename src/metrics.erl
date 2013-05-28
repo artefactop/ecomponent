@@ -1,7 +1,17 @@
 -module(metrics).
 
 %% API
--export([init/0, notify_throughput_iq/3, set_iq_time/3, notify_resp_time/1, notify_dropped_iq/2]).
+-export([
+    init/0, 
+    notify_throughput_presence/2,
+    notify_throughput_message/2,
+    notify_throughput_iq/3, 
+    set_iq_time/3, 
+    notify_resp_time/1, 
+    notify_dropped_presence/1,
+    notify_dropped_message/1,
+    notify_dropped_iq/2
+]).
 
 -spec init() -> ok.
 
@@ -20,12 +30,40 @@ init() ->
     end,
     ok.
 
+-spec notify_throughput_presence(IO::atom(), Type :: atom()) ->
+    ok | {error, Name :: atom(), nonexistent_metric} |
+    {error, Type :: atom(), unsupported_metric_type}.
+
+notify_throughput_presence(IO, Type) ->
+    Name = concat("presence_throughput_", concat(IO, concat("_", Type))),
+    case ets:member(metrics, Name) of 
+        false ->
+            folsom_metrics:new_spiral(Name), %% last 60 sec
+            ets:insert(metrics, {Name, 1});
+        _ -> true
+    end,
+    folsom_metrics:notify({Name, 1}).
+
+-spec notify_throughput_message(IO::atom(), Type :: atom()) ->
+    ok | {error, Name :: atom(), nonexistent_metric} |
+    {error, Type :: atom(), unsupported_metric_type}.
+
+notify_throughput_message(IO, Type) ->
+    Name = concat("message_throughput_", concat(IO, concat("_", Type))),
+    case ets:member(metrics, Name) of 
+        false ->
+            folsom_metrics:new_spiral(Name), %% last 60 sec
+            ets:insert(metrics, {Name, 1});
+        _ -> true
+    end,
+    folsom_metrics:notify({Name, 1}).
+
 -spec notify_throughput_iq(IO::atom(), Type :: atom(), NS :: atom()) ->
     ok | {error, Name :: atom(), nonexistent_metric} |
     {error, Type :: atom(), unsupported_metric_type}.
 
 notify_throughput_iq(IO, Type, NS) ->
-    Name = concat("throughput_", concat(IO, concat("_", concat(concat(Type, "_"), NS)))),
+    Name = concat("iq_throughput_", concat(IO, concat("_", concat(concat(Type, "_"), NS)))),
     case ets:member(metrics, Name) of
         false ->
             folsom_metrics:new_spiral(Name), %% last 60 sec
@@ -37,7 +75,7 @@ notify_throughput_iq(IO, Type, NS) ->
 -spec set_iq_time(Id :: binary(), Type :: atom(), NS :: atom()) -> boolean().
 
 set_iq_time(Id, Type, NS) ->
-    ets:insert(response_time, {Id, {now(), concat(concat(Type, "_"), NS)}}).
+    ets:insert(response_time, {Id, {os:timestamp(), concat(concat(Type, "_"), NS)}}).
 
 -spec notify_resp_time(Id :: binary()) ->
     ok | {error, Name :: atom(), nonexistent_metric} |
@@ -58,12 +96,40 @@ notify_resp_time(Id) ->
         _ -> ok
     end.
 
+-spec notify_dropped_presence(Type :: atom()) ->
+    ok | {error, Name :: atom(), nonexistent_metric} |
+    {error, Type :: atom(), unsupported_metric_type}.
+
+notify_dropped_presence(Type) ->
+    Name = concat("presence_dropped_", Type),
+    case ets:member(metrics, Name) of
+        false ->
+            folsom_metrics:new_spiral(Name), %% last 60 sec
+            ets:insert(metrics, {Name, 1});
+        _ -> true
+    end,
+    folsom_metrics:notify({Name, 1}).
+
+-spec notify_dropped_message(Type :: atom()) ->
+    ok | {error, Name :: atom(), nonexistent_metric} |
+    {error, Type :: atom(), unsupported_metric_type}.
+
+notify_dropped_message(Type) ->
+    Name = concat("message_dropped_", Type),
+    case ets:member(metrics, Name) of
+        false ->
+            folsom_metrics:new_spiral(Name), %% last 60 sec
+            ets:insert(metrics, {Name, 1});
+        _ -> true
+    end,
+    folsom_metrics:notify({Name, 1}).
+
 -spec notify_dropped_iq(Type :: atom(), NS :: atom()) ->
     ok | {error, Name :: atom(), nonexistent_metric} |
     {error, Type :: atom(), unsupported_metric_type}.
 
 notify_dropped_iq(Type, NS) ->
-    Name = concat("dropped_", concat(concat(Type, "_"), NS)),
+    Name = concat("iq_dropped_", concat(concat(Type, "_"), NS)),
     case ets:member(metrics, Name) of
         false ->
             folsom_metrics:new_spiral(Name), %% last 60 sec
