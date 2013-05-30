@@ -1,0 +1,6 @@
+language: erlang
+otp_release:
+   - R15B03-1
+   - R15B02
+   - R15B01
+script: "rm -rf deps/*; rebar clean get-deps compile && rebar ct skip_deps=true"
