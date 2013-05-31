@@ -144,9 +144,6 @@ handle_info(#received_packet{packet_type=presence, type_attr=Type, raw_packet=Pr
             {noreply, State}
     end;
 
-handle_info({send, OPacket, NS, App}, State) ->
-    handle_info({send, OPacket, NS, App, true}, State);
-
 handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=State) ->
     Kind = exmpp_iq:get_kind(OPacket),
     From = exmpp_stanza:get_sender(OPacket),

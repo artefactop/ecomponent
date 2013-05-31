@@ -3,5 +3,4 @@ otp_release:
    - R15B03
    - R15B02
    - R15B01
-script: "rebar compile && rebar ct skip_deps=true"
-
+script: "rebar compile && rebar eunit skip_deps=true"
