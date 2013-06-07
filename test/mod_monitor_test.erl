@@ -1,24 +1,25 @@
--module(mod_monitor_SUITE).
+-module(mod_monitor_test).
 
--include_lib("common_test/include/ct.hrl").
--include("../include/ecomponent.hrl").
+-compile(export_all).
 
--export([all/0, suite/0]).
--export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
--export([init_test/1, accept_test/1]).
+-include("../include/ecomponent_test.hrl").
 
 -define(WHITELIST, ["white@localhost"]).
 -define(WHITE, [{monitor, "white@localhost", 0, now()}]).
 -define(BLACK, [{monitor, "black@localhost", 2, now()}]).
 -define(EMPTY, []).
 
-all() -> 
-    [init_test, accept_test].
+setup_test_() ->
+    {setup, 
+        fun init_per_suite/0,
+        fun end_per_suite/1,
+        fun (Config) -> [
+            init_test(Config),
+            accept_test(Config)
+        ] end
+    }.
 
-suite() ->
-    [{ct_hooks,[{cth_junit, [{path, "junit_mod_monitor.xml"}]}]},{timetrap,{seconds,30}}].
-
-init_per_suite(Config) ->
+init_per_suite() ->
     application:start(compiler),
     application:start(syntax_tools),
     application:start(lager),
@@ -33,7 +34,7 @@ init_per_suite(Config) ->
         (_Table, "black@localhost") -> ?BLACK;
         (_Table, "empty@localhost") -> ?EMPTY
     end),
-    Config.
+    ok.
 
 end_per_suite(_Config) ->
     meck:unload(mnesia),
@@ -42,21 +43,17 @@ end_per_suite(_Config) ->
     application:stop(compiler),
     ok.
 
-init_per_testcase(_, Config) ->
-    Config.
-    
-end_per_testcase(_, _Config) ->
-    ok.
-
 init_test(_Config) ->
-    mod_monitor:init(?WHITELIST),
-    [[{"white@localhost",allowed}]] = ets:match(?WLIST_TABLE, '$1'),
-    ok.
+    ?_assert(begin 
+        mod_monitor:init(?WHITELIST),
+        [[{"white@localhost",allowed}]] =:= ets:match(?WLIST_TABLE, '$1')
+    end).
 
 accept_test(_Config) ->
-    mod_monitor:init(?WHITELIST),
-    true = mod_monitor:accept("white@localhost", 0, 0),
-    false = mod_monitor:accept("black@localhost", 1, 10),
-    true = mod_monitor:accept("empty@localhost", 1, 10),
-    ok.
-
+    ?_assert(begin
+        mod_monitor:init(?WHITELIST),
+        true = mod_monitor:accept("white@localhost", 0, 0),
+        false = mod_monitor:accept("black@localhost", 1, 10),
+        true = mod_monitor:accept("empty@localhost", 1, 10),
+        true
+    end).
