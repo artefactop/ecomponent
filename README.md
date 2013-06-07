@@ -1,6 +1,8 @@
 eComponent
 ==========
 
+[![Build Status](https://api.travis-ci.org/bosqueviejo/ecomponent.png)](https://travis-ci.org/manuel-rubio/ecomponent)
+
 Framework for write XMPP external components [XEP-0114](http://xmpp.org/extensions/xep-0114.html) in Erlang/OTP
 
 By default support:
