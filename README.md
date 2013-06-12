@@ -73,6 +73,10 @@ The example file `app.config` have the following sections:
             {features, [
                 <<"jabber:iq:last">> | [binary()]
             ]},
+            {info, [
+                {type, <<"jabber:protocol:boot">>},
+                {name, <<"Boot">>}
+            ]},
             {disco_info, boolean()}
         ]},
     

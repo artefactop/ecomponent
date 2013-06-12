@@ -56,6 +56,7 @@
     syslogName = ?SYSLOG_NAME :: string(),
     timeout = undefined :: integer(),
     features = [] :: [binary()],
+    info = [] :: proplists:proplists(),
     disco_info = true :: boolean()
 }).
 
@@ -100,7 +101,7 @@ handle_info(
         #received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, 
         #state{
             maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, 
-            features=Features,disco_info=DiscoInfo
+            features=Features,info=Info,disco_info=DiscoInfo
         }=State) ->
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
     spawn(metrics, notify_throughput_iq, [in, Type, NS]),
@@ -113,7 +114,7 @@ handle_info(
                     ignore;
                 true ->
                     lager:debug("To process packet with NS=~p~n", [NS]),
-                    spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From, Features])
+                    spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From, Features, Info])
             end,
             {noreply, State, get_countdown(State)};
         false ->
@@ -449,6 +450,7 @@ configure() ->
         accessListSet = proplists:get_value(access_list_set, Conf, []),
         accessListGet = proplists:get_value(access_list_get, Conf, []),
         features = proplists:get_value(features, Conf, []),
+        info = proplists:get_value(info, Conf, []), 
         disco_info = proplists:get_value(disco_info, Conf, true) 
     })}.
 
