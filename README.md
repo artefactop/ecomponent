@@ -32,6 +32,9 @@ Configuration
 - `presence_processor` set one processor for presence stanzas. Optional.  
 You can set the same processor for iq's, messages and presences or not.  
 - `mnesia_nodes` set name of mnesia node if you want set your external component like cluster. Optional.  
+- `mnesia_callback` identify a function that should returns a list of tables to create and distribute in the mnesia cluster. Optional.
+- `info` part of disco#info identity, as you can see in [XEP-0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html). You can setup the type of identity and the name. Optional.
+- `disco_info` setup if the disco#info should be showed (true) or muted (false). Default value is `true`. Optional.
 
 ###[folsom_cowboy](https://github.com/bosqueviejo/folsom_cowboy)
 
@@ -42,6 +45,10 @@ The default values are:
 - iq throughput by namespace. [spiral](https://github.com/boundary/folsom#spiral-meter).
 - iq response time by namespace. [slide](https://github.com/boundary/folsom#slide) 60 sec.
 - iq dropped by namespace. [spiral](https://github.com/boundary/folsom#spiral-meter).
+- presence throughput by type (available, unavailable, ...). [spiral](https://github.com/boundary/folsom#spiral-meter).
+- presence dropped by type. [spiral](https://github.com/boundary/folsom#spiral-meter).
+- message throughput by type (normal, chat, groupchat, ...). [spiral](https://github.com/boundary/folsom#spiral-meter).
+- message dropped by type. [spiral](https://github.com/boundary/folsom#spiral-meter).
 
 ###confetti
 [confetti configuration](https://github.com/manuel-rubio/confetti)
@@ -72,6 +79,10 @@ The example file `app.config` have the following sections:
             {mnesia_callback, [Callback::{M::atom(),F::atom(),A::[term()]}]},
             {features, [
                 <<"jabber:iq:last">> | [binary()]
+            ]},
+            {info, [
+                {type, <<"jabber:protocol:boot">>},
+                {name, <<"Boot">>}
             ]},
             {disco_info, boolean()}
         ]},
@@ -126,3 +137,28 @@ The file `vars.config` completes the app.config with simple format to configure 
 
 On processors you can indicate a list of processor by namespace or choose one by default,
 the processor can be a module or an app.
+
+###clustering
+
+If you use Mnesia to do a share info in a serveral nodes cluster, you can create your tables as follow:
+
+```erlang
+-module(mycode).
+-compile([export_all]).
+
+-record(mytable, {id, name, description}).
+
+create_tables() -> [
+    {mytable, disc_copies, record_info(fields, mytable)}
+].
+```
+
+And in the config file:
+
+```erlang
+...
+    {mnesia_callback, [
+        {mycode, create_tables, []}
+    ]}
+...
+```

@@ -13,6 +13,7 @@ setup_test_() ->
             config_test(Config), 
             ping_test(Config), 
             disco_test(Config), 
+            disco_info_test(Config),
             forward_response_module_test(Config),
             forward_ns_in_set_test(Config), 
             save_id_expired_test(Config), 
@@ -38,6 +39,39 @@ end_per_suite(_Config) ->
     meck:unload(),
     ok.
 
+init(disco_info_test) ->
+    ?meck_confetti([[{ecomponent, [
+        {syslog_name, "ecomponent" },
+        {jid, "ecomponent.test" },
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"},
+        {whitelist, [] }, %% throttle whitelist
+        {access_list_get, []},
+        {access_list_set, [
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
+        ]},
+        {max_per_period, 15},
+        {period_seconds, 8},
+        {processors, [
+            {default, {mod, dummy}}
+        ]},
+        {message_processor, {mod, dummy}},
+        {presence_processor, {mod, dummy}},
+        {disco_info, true},
+        {info, [
+            {type, <<"jabber:last">>},
+            {name, <<"Last Component">>}
+        ]},
+        {features, [<<"jabber:iq:last">>]}
+    ]}]]),
+    meck:new(dummy),
+    {ok, _Pid} = ecomponent:start_link();
 init(disco_muted_test) ->
     ?meck_confetti([[{ecomponent, [
         {syslog_name, "ecomponent" },
@@ -146,7 +180,7 @@ config_test(_Config) ->
             {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
             {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
             {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
-        ], [], local7, "ecomponent", _Timestamp, _Features, _DiscoInfo}, State).
+        ], [], local7, "ecomponent", _Timestamp, _Features, _Info, _DiscoInfo}, State).
 
 message_test(_Config) ->
     init(message_test),
@@ -254,6 +288,41 @@ ping_test(_Config) ->
             type='result'
             id='test_bot'
             from='alice.localhost'/>
+    ">>),
+    ?try_catch_xml(Reply, 1000),
+    finish().
+
+disco_info_test(_Config) ->
+    init(disco_info_test),
+    Packet = #received_packet{
+        packet_type=iq, type_attr="get", raw_packet=
+            ?Parse(<<"
+                <iq xmlns='jabber:client'
+                    type='get'
+                    to='alice.localhost'
+                    id='test_bot'>
+                    <query xmlns='http://jabber.org/protocol/disco#info'/>
+                </iq>
+            ">>),
+        from={"bob","localhost",undefined}
+    },
+    Pid = self(),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        Pid ! P
+    end),
+    ecomponent ! Packet,
+    Reply = ?CleanXML(<<"
+        <iq xmlns='jabber:client'
+            type='result'
+            id='test_bot'
+            from='alice.localhost'>
+            <query xmlns='http://jabber.org/protocol/disco#info'>
+                <identity type='jabber:last' 
+                          name='Last Component' 
+                          category='component'/>
+                <feature var='jabber:iq:last'/>
+            </query>
+        </iq>
     ">>),
     ?try_catch_xml(Reply, 1000),
     finish().
@@ -366,7 +435,7 @@ coutdown_test(_Config) ->
         undefined, undefined, undefined, undefined, undefined, 
         undefined, undefined, undefined, undefined, undefined,
         undefined, undefined, undefined, 3, undefined, undefined,
-        undefined, undefined, undefined, [], true
+        undefined, undefined, undefined, [], [], true
     },
     ?assertEqual(100, ecomponent:get_countdown(St)),
     State = ecomponent:reset_countdown(St),

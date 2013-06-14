@@ -16,7 +16,8 @@
     ns :: atom(),
     payload :: term(),
     iq :: term(),
-    features = [] :: [binary()]
+    features = [] :: [binary()],
+    info = [] :: proplists:proplists()
 }).
 
 -record(response, {
