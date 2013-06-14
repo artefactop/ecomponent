@@ -5,14 +5,14 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([pre_process_iq/5]).
+-export([pre_process_iq/6]).
 
--spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid(), Features::[binary()]) -> ok.
+-spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid(), Features::[binary()], Info::proplists:proplists()) -> ok.
 
-pre_process_iq(Type, IQ, NS, From, Features) ->
+pre_process_iq(Type, IQ, NS, From, Features, Info) ->
     Payload = exmpp_iq:get_payload(IQ),
     To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(IQ)),
-    process_iq(#params{from=From, to=To, ns=NS, type=Type, iq=IQ, payload=Payload, features=Features}).
+    process_iq(#params{from=From, to=To, ns=NS, type=Type, iq=IQ, payload=Payload, features=Features, info=Info}).
 
 -spec process_iq( Params::#params{} ) -> ok.
 
@@ -20,8 +20,23 @@ process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
     Result = exmpp_iq:result(IQ),
     ecomponent:send(Result, ?NS_PING, undefined);
 
-process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO, features=Features}) ->
+process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO, features=Features, info=Info}) ->
+    Identity = case {
+        proplists:get_value(type, Info),
+        proplists:get_value(name, Info)
+    } of 
+        {undefined, _} -> [];
+        {_, undefined} -> [];
+        {undefined, undefined} -> [];
+        {Type, Name} ->
+            [exmpp_xml:element(?NS_DISCO_INFO, 'identity', [
+                exmpp_xml:attribute(<<"type">>, Type),
+                exmpp_xml:attribute(<<"name">>, Name),
+                exmpp_xml:attribute(<<"category">>, <<"component">>) 
+            ], [])]
+    end,
     Result = exmpp_iq:result(IQ, exmpp_xml:element(?NS_DISCO_INFO, 'query', [],
+        Identity ++ 
         lists:map(fun(Feature) ->
             exmpp_xml:element(undefined, 'feature', [
                 exmpp_xml:attribute(<<"var">>, Feature) 
