@@ -1,4 +1,3 @@
--define(ECOMPONENT, true).
 -define(NS_PROCESSOR, tab_ns_processor).
 -define(WLIST_TABLE, mmwl).
 

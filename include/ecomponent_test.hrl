@@ -4,8 +4,8 @@
 -include_lib("exmpp/include/exmpp_jid.hrl").
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include_lib("ecomponent/include/ecomponent.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("../include/ecomponent.hrl").
 
 -define(run_exmpp(), begin
     case lists:keyfind(exmpp, 1, application:loaded_applications()) of

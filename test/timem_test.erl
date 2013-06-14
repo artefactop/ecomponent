@@ -3,9 +3,6 @@
 -compile(export_all).
 
 -include("../include/ecomponent_test.hrl").
--ifndef(ECOMPONENT).
--include("../include/ecomponent.hrl").
--endif.
 
 -define(UUID, list_to_binary(uuid:to_string(uuid:uuid4()))).
 
