@@ -3,6 +3,9 @@
 -compile(export_all).
 
 -include("../include/ecomponent_test.hrl").
+-ifndef(ECOMPONENT).
+-include("../include/ecomponent.hrl").
+-endif.
 
 setup_test_() ->
     {setup, 

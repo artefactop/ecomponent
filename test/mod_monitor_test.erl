@@ -3,6 +3,9 @@
 -compile(export_all).
 
 -include("../include/ecomponent_test.hrl").
+-ifndef(ECOMPONENT).
+-include("../include/ecomponent.hrl").
+-endif.
 
 -define(WHITELIST, ["white@localhost"]).
 -define(WHITE, [{monitor, "white@localhost", 0, now()}]).
