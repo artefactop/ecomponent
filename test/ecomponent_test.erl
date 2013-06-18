@@ -21,7 +21,8 @@ setup_test_() ->
             message_test(Config), 
             presence_test(Config), 
             access_list_get_test(Config), 
-            access_list_set_test(Config)
+            access_list_set_test(Config),
+            sync_send_test(Config)
         ] end
     }.
 
@@ -125,6 +126,24 @@ init(save_id_expired_test) ->
         {message_processor, {mod, dummy}},
         {presence_processor, {mod, dummy}},
         {request_timeout, 2}
+    ]}]]),
+    meck:new(dummy),
+    {ok, _Pid} = ecomponent:start_link();
+init(sync_send_test) ->
+    ?meck_confetti([[{ecomponent, [
+        {syslog_name, "ecomponent" },
+        {jid, "ecomponent.test" },
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"},
+        {whitelist, [] }, %% throttle whitelist
+        {access_list_get, []},
+        {access_list_set, []},
+        {max_per_period, 15},
+        {period_seconds, 8},
+        {processors, [
+            {default, {mod, dummy}}
+        ]}
     ]}]]),
     meck:new(dummy),
     {ok, _Pid} = ecomponent:start_link();
@@ -427,6 +446,69 @@ save_id_expired_test(_Config) ->
         </iq>
     ">>),
     ?try_catch_xml(Reply, 3000),
+    finish().
+
+sync_send_test(_Config) ->
+    init(sync_send_test),
+    Send_Packet = ?Parse(<<"
+        <iq xmlns='jabber:client'
+            type='get'
+            from='alice.localhost'
+            to='bob.localhost'
+            id='test_bot'>
+            <query xmlns='http://jabber.org/protocol/disco#info'/>
+        </iq>
+    ">>),
+    NS = 'http://jabber.org/protocol/disco#info',
+    Pid = self(),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        Pid ! P
+    end),
+    spawn(fun() -> 
+        Pid ! ecomponent:sync_send(Send_Packet, NS) 
+    end),
+    Packet = #received_packet{
+        packet_type=iq, type_attr="result", raw_packet=
+            ?Parse(<<"
+                <iq xmlns='jabber:client'
+                    type='result'
+                    id='test_bot'
+                    from='bob@localhost'
+                    to='alice.localhost'>
+                    <query xmlns='http://jabber.org/protocol/disco#info'>
+                        <feature var='jabber:iq:last'/>
+                    </query>
+                </iq>
+            ">>),
+        queryns=NS,
+        from={"bob","localhost",undefined}
+    },
+    ecomponent ! Packet,
+    SendXML = ?ToXML(Send_Packet),
+    ?try_catch_xml(SendXML, 1000),
+    Params = #params{
+        type = "result",
+        from = {"bob","localhost",undefined},
+        to = {undefined, <<"alice.localhost">>, undefined},
+        ns=NS,
+        payload = ?Parse(<<"
+            <query xmlns='http://jabber.org/protocol/disco#info'>
+                <feature var='jabber:iq:last'/>
+            </query>
+        ">>),
+        iq = ?Parse(<<"
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='bob@localhost'
+                to='alice.localhost'>
+                <query xmlns='http://jabber.org/protocol/disco#info'>
+                    <feature var='jabber:iq:last'/>
+                </query>
+            </iq>
+        ">>)
+    },
+    ?try_catch(Params, 1000),
     finish().
 
 coutdown_test(_Config) ->
