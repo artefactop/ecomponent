@@ -22,7 +22,8 @@ setup_test_() ->
             coutdown_test(Config),
             message_test(Config), 
             presence_test(Config), 
-            sync_send_test(Config)
+            sync_send_test(Config),
+            multiconnection_test(Config)
         ] end
     }.
 
@@ -67,6 +68,59 @@ end_per_suite(_Config) ->
     meck:unload(),
     ok.
 
+init(multiconnection_test) ->
+    Conf = [
+        {syslog_name, "ecomponent" },
+        {jid, "ecomponent.test" },
+        {servers, [
+            {server_one, [
+                {server, "localhost" },
+                {port, 8899},
+                {pass, "secret"}
+            ]},
+            {server_two, [
+                {server, "localhost" },
+                {port, 8899},
+                {pass, "secret"}
+            ]}
+        ]},
+        {whitelist, []}, %% throttle whitelist
+        {access_list_get, []},
+        {access_list_set, [
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
+        ]},
+        {max_per_period, 15},
+        {period_seconds, 8},
+        {processors, [
+            {default, {mod, dummy}}
+        ]},
+        {message_processor, {mod, dummy}},
+        {presence_processor, {mod, dummy}},
+        {disco_info, true},
+        {info, [
+            {type, <<"jabber:last">>},
+            {name, <<"Last Component">>}
+        ]},
+        {features, [<<"jabber:iq:last">>]}
+    ],
+    ?meck_confetti([[{ecomponent, Conf}]]),
+    meck:new(dummy),
+    {ok, _} = ecomponent:start_link(),
+    {ok, _} = ecomponent_con_worker:start_link(server_one, "ecomponent.test", [
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"}
+    ]),
+    {ok, _} = ecomponent_con_worker:start_link(server_two, "ecomponent.test", [
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"}
+    ]);
 init(disco_info_test) ->
     Conf = [
         {syslog_name, "ecomponent" },
@@ -239,12 +293,12 @@ init(_) ->
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf).
 
-finish() ->
+-define(finish(), begin
     meck:unload(confetti),
     meck:unload(dummy),
     ecomponent:stop(),
-    ecomponent_con_worker:stop(default),
-    ?_assert(true).
+    ?_assert(true)
+end).
 
 config_test(_Config) ->
     init(config_test),
@@ -312,7 +366,7 @@ disco_muted_test(_Config) ->
             from='alice.localhost'/>
     ">>),
     ?try_catch_xml(Reply, 1000),
-    finish().
+    ?finish().
 
 ping_test(_Config) ->
     init(ping_test),
@@ -340,7 +394,7 @@ ping_test(_Config) ->
             from='alice.localhost'/>
     ">>),
     ?try_catch_xml(Reply, 1000),
-    finish().
+    ?finish().
 
 message_test(_Config) ->
     init(message_test),
@@ -362,7 +416,7 @@ message_test(_Config) ->
     end),
     ecomponent ! Packet,
     ?try_catch(#message{type="chat", xmlel=Xmlel}, 1000),
-    finish().
+    ?finish().
 
 presence_test(_Config) ->
     init(presence_test),
@@ -381,7 +435,7 @@ presence_test(_Config) ->
     end),
     ecomponent ! Packet,
     ?try_catch(#presence{xmlel=Xmlel}, 1000),
-    finish().
+    ?finish().
 
 disco_info_test(_Config) ->
     init(disco_info_test),
@@ -416,7 +470,7 @@ disco_info_test(_Config) ->
         </iq>
     ">>),
     ?try_catch_xml(Reply, 1000),
-    finish().
+    ?finish().
 
 disco_test(_Config) ->
     init(disco_test),
@@ -448,7 +502,7 @@ disco_test(_Config) ->
         </iq>
     ">>),
     ?try_catch_xml(Reply, 1000),
-    finish().
+    ?finish().
 
 forward_response_module_test(_Config) ->
     init(forward_response_module_test),
@@ -468,7 +522,7 @@ forward_response_module_test(_Config) ->
     timem:insert(Id, #matching{id="forward_response_module_test", ns='urn:itself', processor=self()}),
     ecomponent ! Packet,
     ?try_catch(#response{ns='urn:itself', params=Params} when is_record(Params,params), 1000),
-    finish().
+    ?finish().
 
 forward_ns_in_set_test(_Config) ->
     init(forward_ns_in_set_test),
@@ -502,7 +556,7 @@ forward_ns_in_set_test(_Config) ->
         features=[<<"jabber:iq:last">>],
         info=[]
     }, 1000),
-    finish().
+    ?finish().
 
 save_id_expired_test(_Config) ->
     init(save_id_expired_test),
@@ -510,6 +564,7 @@ save_id_expired_test(_Config) ->
     Packet = ?Parse(<<"
         <iq xmlns='jabber:client'
             type='set'
+            from='bob@localhost/res'
             to='alice.localhost'
             id='", Id/binary, "'>
             <data xmlns='urn:itself'/>
@@ -524,13 +579,14 @@ save_id_expired_test(_Config) ->
     Reply = ?CleanXML(<<"
         <iq xmlns='jabber:client'
             type='set'
+            from='bob@localhost/res'
             to='alice.localhost'
             id='", Id/binary, "'>
             <data xmlns='urn:itself'/>
         </iq>
     ">>),
     ?try_catch_xml(Reply, 3000),
-    finish().
+    ?finish().
 
 sync_send_test(_Config) ->
     init(sync_send_test),
@@ -593,7 +649,7 @@ sync_send_test(_Config) ->
         ">>)
     },
     ?try_catch(Params, 1000),
-    finish().
+    ?finish().
 
 coutdown_test(_Config) ->
     init(countdown_test),
@@ -606,13 +662,13 @@ coutdown_test(_Config) ->
     1000 = ecomponent:get_countdown(State),
     timer:sleep(1000),
     100 = ecomponent:get_countdown(State),
-    finish().
+    ?finish().
 
 access_list_get_test(_Config) ->
     init(access_list_get_test),
     Bob1 = {undefined, "bob1.localhost", undefined},
     true = gen_server:call(ecomponent, {access_list_get, 'com.ecomponent.ns/ns1', Bob1}),
-    finish().
+    ?finish().
 
 access_list_set_test(_Config) ->
     init(access_list_set_test),
@@ -620,4 +676,53 @@ access_list_set_test(_Config) ->
     Bob1 = {undefined, "bob1.localhost", undefined},
     true = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob}),
     false = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob1}),
-    finish().
+    ?finish().
+
+multiconnection_test(_Config) ->
+    init(multiconnection_test),
+    Packet = #received_packet{
+        packet_type=iq, type_attr="get", raw_packet=
+            ?Parse(<<"
+                <iq xmlns='jabber:client'
+                    type='get'
+                    from='bob@localhost/res'
+                    to='alice.localhost'
+                    id='test_bot'>
+                    <query xmlns='http://jabber.org/protocol/disco#info'/>
+                </iq>
+            ">>),
+        from={"bob","localhost",undefined}
+    },
+    Pid = self(),
+    meck:new(timem),
+    meck:expect(timem, insert, 2, ok),
+    meck:expect(timem, remove, fun
+        (ID) when is_tuple(ID) ->
+            Pid ! ID,
+            server_two
+    end),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        Pid ! P
+    end),
+    server_two ! Packet,
+    ?try_catch({<<"test_bot">>, <<"bob@localhost">>}, 1000),
+    Reply = ?CleanXML(<<"
+        <iq xmlns='jabber:client'
+            type='result'
+            from='alice.localhost'
+            to='bob@localhost/res'
+            id='test_bot'>
+            <query xmlns='http://jabber.org/protocol/disco#info'>
+                <identity type='jabber:last'
+                          name='Last Component'
+                          category='component'/>
+                <feature var='jabber:iq:last'/>
+            </query>
+        </iq>
+    ">>),
+    ?try_catch_xml(Reply, 1000),
+    meck:unload(timem), 
+    meck:unload(confetti),
+    meck:unload(dummy),
+    ecomponent:stop(),
+    ?_assert(true).

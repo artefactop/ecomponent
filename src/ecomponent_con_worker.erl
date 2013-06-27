@@ -59,7 +59,9 @@ init([ID, JID, Conf]) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
 
-handle_info(ReceivedPacket, State) when is_record(ReceivedPacket, received_packet)  ->
+handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
+    ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
+    timem:insert({ID, ToBin}, State#state.id),
     ecomponent ! ReceivedPacket,
     {noreply, State};
 

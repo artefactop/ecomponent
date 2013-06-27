@@ -22,20 +22,45 @@
     handle_info/2,
     terminate/2,
     code_change/3,
+    is_active/1,
     send/1,
+    send/2,
     active/1,
     down/1
 ]).
 
+is_active(ID) ->
+    gen_server:call(?MODULE, {is_active, ID}).
+
 send(Info) ->
-    case gen_server:call(?MODULE, get_pool) of 
-        [] ->
-            lager:error("no pool active to send the packet... waiting..."),
-            timer:sleep(?TIME_TO_SLEEP),
-            send(Info);
-        Pool ->
-            lager:debug("Connecting to pool: ~p~n", [Pool]),
-            Pool ! {send, Info}
+    ToBin = case exmpp_stanza:get_recipient(Info) of 
+        undefined -> 
+            undefined;
+        To -> 
+            exmpp_jid:bare_to_binary(exmpp_jid:parse(To))
+    end,
+    ID = exmpp_stanza:get_id(Info),  
+    send(Info, timem:remove({ID,ToBin})).
+
+send(Info, ID) ->
+    case ID =/= undefined andalso is_active(ID) of 
+        true ->
+            lager:debug("Connecting to (fix) pool: ~p~n", [ID]),
+            ID ! {send, Info};
+        _ ->
+            case {whereis(?MODULE), gen_server:call(?MODULE, get_pool)} of 
+                {undefined, _} ->
+                    lager:error("ecomponent_con DOWN... waiting..."),
+                    timer:sleep(?TIME_TO_SLEEP),
+                    send(Info);
+                {_, []} ->
+                    lager:error("no pool active to send the packet... waiting..."),
+                    timer:sleep(?TIME_TO_SLEEP),
+                    send(Info);
+                {_, Pool} ->
+                    lager:debug("Connecting to pool: ~p~n", [Pool]),
+                    Pool ! {send, Info}
+            end
     end.
 
 start_link(JID, Conf) ->
@@ -82,11 +107,6 @@ handle_info({active, X}, #state{active=Pools, down=Down}=State) ->
 handle_info({down, X}, #state{active=Pools, down=Down}=State) ->
     {noreply, State#state{active=Pools -- [X], down=Down ++ [X]}};
 
-handle_info(stop, #state{active=Pools, down=Down}=State) ->
-    [ Pool ! stop || Pool <- Pools ],
-    [ Pool ! stop || Pool <- Down ],
-    {stop, normal, State};
-
 handle_info(Record, State) -> 
     lager:info("Unknown Info Request: ~p~n", [Record]),
     {noreply, State}.
@@ -108,6 +128,14 @@ handle_cast(_Msg, State) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
+
+handle_call(stop, _From, #state{active=Pools, down=Down}=State) ->
+    [ ecomponent_con_worker:stop(Pool) || Pool <- Pools ],
+    [ ecomponent_con_worker:stop(Pool) || Pool <- Down ],
+    {stop, normal, ok, State};
+
+handle_call({is_active, ID}, _From, #state{active=Pools}=State) ->
+    {reply, lists:member(ID, Pools), State};
 
 handle_call(get_pool, _From, #state{active=[Pool|Pools]}=State) ->
     {reply, Pool, State#state{active=Pools ++ [Pool]}};
