@@ -73,8 +73,8 @@ notify_resp_time(Id) ->
                 _ -> true
             end,
             Diff = timer:now_diff(now(), Time)/1000000, %%seconds
-            folsom_metrics:notify({Name, Diff}),
-            ets:delete(response_time, Id);
+            ets:delete(response_time, Id),
+            folsom_metrics:notify({Name, Diff});
         _ -> ok
     end.
 
