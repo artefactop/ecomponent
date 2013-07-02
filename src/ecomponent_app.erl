@@ -24,13 +24,6 @@
 %% application. If the application is structured according to the OTP
 %% design principles as a supervision tree, this means starting the
 %% top supervisor of the tree.
-%%
-%% @spec start(StartType, StartArgs) -> {ok, Pid} |
-%%                                      {ok, Pid, State} |
-%%                                      {error, Reason}
-%%      StartType = normal | {takeover, Node} | {failover, Node}
-%%      StartArgs = term()
-%% @end
 %%--------------------------------------------------------------------
 
 -spec start() -> {ok, Pid::pid()} | {error, Reason::any()}.
@@ -50,9 +43,6 @@ start(_StartType, _StartArgs) ->
 %% This function is called whenever an application has stopped. It
 %% is intended to be the opposite of Module:start/2 and should do
 %% any necessary cleaning up. The return value is ignored.
-%%
-%% @spec stop(State) -> void()
-%% @end
 %%--------------------------------------------------------------------
 
 -spec stop( State::any() ) -> ok.
