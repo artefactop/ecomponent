@@ -653,7 +653,7 @@ sync_send_test(_Config) ->
                 <iq xmlns='jabber:client'
                     type='result'
                     id='test_bot'
-                    from='bob@localhost'
+                    from='bob.localhost'
                     to='alice.localhost'>
                     <query xmlns='http://jabber.org/protocol/disco#info'>
                         <feature var='jabber:iq:last'/>
@@ -661,14 +661,14 @@ sync_send_test(_Config) ->
                 </iq>
             ">>),
         queryns=NS,
-        from={"bob","localhost",undefined}
+        from={undefined,"bob.localhost",undefined}
     },
     ecomponent ! Packet,
     SendXML = ?ToXML(Send_Packet),
     ?try_catch_xml(SendXML, 1000),
     Params = #params{
         type = "result",
-        from = {"bob","localhost",undefined},
+        from = {undefined,"bob.localhost",undefined},
         to = {undefined, <<"alice.localhost">>, undefined},
         ns=NS,
         payload = ?Parse(<<"
@@ -680,7 +680,7 @@ sync_send_test(_Config) ->
             <iq xmlns='jabber:client'
                 type='result'
                 id='test_bot'
-                from='bob@localhost'
+                from='bob.localhost'
                 to='alice.localhost'>
                 <query xmlns='http://jabber.org/protocol/disco#info'>
                     <feature var='jabber:iq:last'/>
