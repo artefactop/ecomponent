@@ -1,11 +1,8 @@
 % snippets for tests
 
 % required for eunit to work
--include_lib("exmpp/include/exmpp_jid.hrl").
--include_lib("exmpp/include/exmpp.hrl").
--include_lib("exmpp/include/exmpp_client.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include("../include/ecomponent.hrl").
+-include("../include/ecomponent_internal.hrl").
 
 -define(run_exmpp(), begin
     case lists:keyfind(exmpp, 1, application:loaded_applications()) of
@@ -44,7 +41,7 @@ end).
 
 -define(meck_confetti(Config), begin
     meck:new(confetti),
-    meck:expect(confetti, fetch, fun(mgmt_conf) -> Config end)
+    meck:expect(confetti, fetch, 1, Config) 
 end).
 
 -define(meck_component(), begin 
@@ -119,7 +116,11 @@ end).
 end).
 
 -define(no_try_catch(NoMatch, Timeout),
-    (fun() -> receive NoMatch -> throw("Matching!"); _ -> ok after Timeout -> ok end end)()
+    (fun() -> receive NoMatch=NM -> ?debugFmt("match: ~p~n", [NM]), throw("Matching!"); _ -> ok after Timeout -> ok end end)()
+).
+
+-define(try_catch_match(Match, Timeout),
+    (fun() -> receive Match; Any -> throw(Any) after Timeout -> throw("TIMEOUT") end end)()
 ).
 
 -define(try_catch(Match, Timeout), 
