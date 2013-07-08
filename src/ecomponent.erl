@@ -394,7 +394,7 @@ get_processor_by_ns(NS) ->
         _ ->
             case ets:lookup(?NS_PROCESSOR, default) of
                 [{_, {_T, _P}=Result}] -> Result;
-                _ -> []
+                _ -> undefined
             end
     end.
 

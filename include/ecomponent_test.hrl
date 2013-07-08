@@ -116,7 +116,7 @@ end).
 end).
 
 -define(no_try_catch(NoMatch, Timeout),
-    (fun() -> receive NoMatch -> throw("Matching!"); _ -> ok after Timeout -> ok end end)()
+    (fun() -> receive NoMatch=NM -> ?debugFmt("match: ~p~n", [NM]), throw("Matching!"); _ -> ok after Timeout -> ok end end)()
 ).
 
 -define(try_catch_match(Match, Timeout),

@@ -23,7 +23,10 @@ setup_test_() ->
             message_test(Config), 
             presence_test(Config), 
             sync_send_test(Config),
-            multiconnection_test(Config)
+            multiconnection_test(Config),
+            processor_iq_test(Config),
+            processor_message_test(Config),
+            processor_presence_test(Config)
         ] end
     }.
 
@@ -260,8 +263,39 @@ init(config_test) ->
         ]},
         {message_processor, {mod, dummy}},
         {presence_processor, {mod, dummy}},
-        {features, [<<"jabber:iq:last">>]}
+        {features, [<<"jabber:iq:last">>]},
+        {mnesia_callback, [
+            {dummy, tables, []}
+        ]}
     ]}]]);
+init(processor_test) ->
+    Conf = [
+        {syslog_name, "ecomponent" },
+        {jid, "ecomponent.test" },
+        {server, "localhost" },
+        {port, 8899},
+        {pass, "secret"},
+        {whitelist, [] }, %% throttle whitelist
+        {access_list_get, []},
+        {access_list_set, [
+            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
+            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
+        ]},
+        {max_per_period, 15},
+        {period_seconds, 8},
+        {processors, [
+            {'jabber:iq:last', {mod, last}}
+        ]},
+        {disco_info, false}
+    ],
+    ?meck_confetti([[{ecomponent, Conf}]]),
+    meck:new(dummy),
+    {ok, _} = ecomponent:start_link(),
+    {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
 init(_) ->
     Conf = [
         {syslog_name, "ecomponent" },
@@ -300,9 +334,15 @@ init(_) ->
     ?_assert(true)
 end).
 
+-record(dummy, {id,name,value}).
+
 config_test(_Config) ->
     init(config_test),
+    meck:new(dummy),
+    meck:expect(dummy, tables, 0, [{dummy, ram_copies, record_info(fields, dummy)}]), 
     {ok, State} = ecomponent:init([]), 
+    meck:unload(dummy), 
+    mnesia:table_info(dummy, all), 
     lager:info("~p~n", [State]),
     timer:sleep(250), 
     meck:unload(confetti),
@@ -726,3 +766,72 @@ multiconnection_test(_Config) ->
     meck:unload(dummy),
     ecomponent:stop(),
     ?_assert(true).
+
+processor_iq_test(_Config) ->
+    init(processor_test),
+    Packet = #received_packet{
+        packet_type=iq, type_attr="get", raw_packet=
+            ?Parse(<<"
+                <iq xmlns='jabber:client'
+                    type='get'
+                    from='bob@localhost/res'
+                    to='alice.localhost'
+                    id='test_bot'>
+                    <query xmlns='whatever'/>
+                </iq>
+            ">>),
+        from={"bob","localhost",undefined}
+    },
+    Pid = self(),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        Pid ! P
+    end),
+    ecomponent ! Packet,
+    Reply = ?CleanXML(<<"
+        <iq xmlns='jabber:client'
+            type='error'
+            from='alice.localhost'
+            to='bob@localhost/res'
+            id='test_bot'>
+            <query xmlns='whatever'/>
+            <error type='cancel'>
+                <service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+            </error>
+        </iq>
+    ">>),
+    ?try_catch_xml(Reply, 1000),
+    ?finish().
+
+processor_message_test(_Config) ->
+    init(processor_test),
+    Packet = #received_packet{
+        packet_type=message, type_attr="chat", raw_packet=
+            ?Parse(<<"
+                <message
+                    type='chat'
+                    from='bob@localhost/res'
+                    to='alice.localhost'
+                    id='test_bot'>
+                    <body/>
+                </message>
+            ">>),
+        from={"bob","localhost",undefined}
+    },
+    ecomponent ! Packet,
+    ?finish().
+
+processor_presence_test(_Config) ->
+    init(processor_test),
+    Packet = #received_packet{
+        packet_type=presence, type_attr="unavailable", raw_packet=
+            ?Parse(<<"
+                <presence
+                    type='unavailable'
+                    from='bob@localhost/res'
+                    to='alice.localhost'
+                    id='test_bot'/>
+            ">>),
+        from={"bob","localhost",undefined}
+    },
+    ecomponent ! Packet,
+    ?finish().
