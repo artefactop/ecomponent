@@ -8,63 +8,13 @@
 
 -behaviour(gen_server).
 
--include_lib("exmpp/include/exmpp.hrl").
--include_lib("exmpp/include/exmpp_client.hrl").
--include_lib("confetti/include/confetti.hrl").
--include("../include/ecomponent.hrl").
-
--type jid() :: { Name::string(), Server::string(), Resource::string() }.
-
--type mod_processor() :: {mod, Module::atom()}.
-
--type app_processor() :: {app, App::atom()}.
-
--type message_processor() :: mod_processor() | app_processor().
-
--type presence_processor() :: mod_processor() | app_processor().
-
--type processor() :: {Name::atom(), Value::(mod_processor() | app_processor())}.
-
--type accesslist() :: Domains::list(binary()).
-
--define(MAX_PER_PERIOD, 10).
--define(PERIOD_SECONDS, 6).
--define(MAX_TRIES, 3).
--define(RESEND_PERIOD, 100).
--define(REQUEST_TIMEOUT, 10).
--define(SYSLOG_FACILITY, local7).
--define(SYSLOG_NAME, "ecomponent").
-
--record(state, {
-    xmppCom :: pid(),
-    jid :: jid(),
-    pass :: string(),
-    server :: string(),
-    port :: integer(),
-    whiteList :: list(string()),
-    maxPerPeriod = ?MAX_PER_PERIOD :: integer(),
-    periodSeconds = ?PERIOD_SECONDS :: integer(),
-    processors :: list(processor()),
-    message_processor :: message_processor(),
-    presence_processor :: presence_processor(),
-    maxTries = ?MAX_TRIES :: integer(),
-    resendPeriod = ?RESEND_PERIOD :: integer(),
-    requestTimeout = ?REQUEST_TIMEOUT :: integer(),
-    accessListSet = [] :: accesslist(),
-    accessListGet = [] :: accesslist(),
-    syslogFacility = ?SYSLOG_FACILITY :: atom(),
-    syslogName = ?SYSLOG_NAME :: string(),
-    timeout = undefined :: integer(),
-    features = [] :: [binary()],
-    info = [] :: proplists:proplists(),
-    disco_info = true :: boolean()
-}).
+-include("../include/ecomponent_internal.hrl").
 
 %% API
 -export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1,
         get_message_processor/0, get_presence_processor/0, send/4, send/3, send/2, send_message/1,
         send_presence/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
-        init_mnesia/2, sync_send/2]).
+        sync_send/2]).
 
 %% gen_server callbacks
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -145,7 +95,7 @@ handle_info(#received_packet{packet_type=presence, type_attr=Type, raw_packet=Pr
             {noreply, State}
     end;
 
-handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID}=State) ->
     Kind = exmpp_iq:get_kind(OPacket),
     From = exmpp_stanza:get_sender(OPacket),
     NewPacket = case From of
@@ -171,10 +121,10 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID, xmppCom=XmppCom}=St
             spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    exmpp_component:send_packet(XmppCom, Packet),
+    ecomponent_con:send(Packet), 
     {noreply, State, get_countdown(State)};
 
-handle_info({send_message, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+handle_info({send_message, OPacket}, #state{jid=JID}=State) ->
     From = exmpp_stanza:get_sender(OPacket),
     NewPacket = case From of
         undefined ->
@@ -194,11 +144,11 @@ handle_info({send_message, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
         undefined -> <<"normal">>;
         Type -> Type
     end]),
-    exmpp_component:send_packet(XmppCom, Packet),
+    ecomponent_con:send(Packet), 
     {noreply, State, get_countdown(State)};
 
 
-handle_info({send_presence, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
+handle_info({send_presence, OPacket}, #state{jid=JID}=State) ->
     From = exmpp_stanza:get_sender(OPacket),
     NewPacket = case From of
         undefined ->
@@ -218,34 +168,17 @@ handle_info({send_presence, OPacket}, #state{jid=JID, xmppCom=XmppCom}=State) ->
         undefined -> <<"available">>;
         Type -> Type 
     end]),
-    exmpp_component:send_packet(XmppCom, Packet),
+    ecomponent_con:send(Packet), 
     {noreply, State, get_countdown(State)};
 
-handle_info({resend, #matching{tries=Tries, packet=P}=N}, #state{xmppCom = XmppCom, maxTries=Max}=State) when Tries < Max ->
+handle_info({resend, #matching{tries=Tries, packet=P}=N}, #state{maxTries=Max}=State) when Tries < Max ->
     save_id(N#matching{tries=Tries+1}),
-    exmpp_component:send_packet(XmppCom, P),
+    ecomponent_con:send(P), 
     {noreply, State, get_countdown(State)};
 
 handle_info({resend, #matching{tries=Tries}=N}, #state{maxTries=Max}=State) when Tries >= Max ->
     lager:warning("Max tries exceeded for: ~p~n", [N]),
     {noreply, State, get_countdown(State)};
-
-handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
-    lager:info("Connection Closed. Trying to Reconnect...~n", []),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    lager:info("Reconnected.~n", []),
-    {noreply, State#state{xmppCom=XmppCom}, get_countdown(State)};
-
-handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
-    lager:info("Connection Closed. Trying to Reconnect...~n", []),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    lager:info("Reconnected.~n", []),
-    {noreply, State#state{xmppCom=XmppCom}, get_countdown(State)};
-
-handle_info(stop, #state{xmppCom=XmppCom}=State) ->
-    lager:info("Component Stopped.~n",[]),
-    exmpp_component:stop(XmppCom),
-    {stop, normal, State};
 
 handle_info(timeout, #state{requestTimeout=RT}=State) ->
     expired_stanzas(RT),
@@ -281,15 +214,6 @@ handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
     lager:debug("Received Call: ~p~n", [Info]),
     {reply, is_allowed(get, NS, Jid, State), State, get_countdown(State)};
 
-handle_call(reconnect, _From, State) ->
-    exmpp_component:stop(State#state.xmppCom),
-    timer:sleep(250),
-    {_, XmppCom} = make_connection(
-        State#state.jid, State#state.pass,
-        State#state.server, State#state.port
-    ),
-    {reply, ok, State#state{xmppCom=XmppCom}, get_countdown(State)};
-
 handle_call({change_config, syslog, {Facility, Name}}, _From, State) ->
     init_syslog(if
         is_number(Facility) -> Facility;
@@ -307,15 +231,6 @@ handle_call({change_config, Key, Value}, _From, State) ->
         _ -> {reply, error, State, get_countdown(State)}
     end;
 
-handle_call({set_xmpp_conf, JID, Pass, Server, Port}, _From, State) ->
-    exmpp_component:stop(State#state.xmppCom),
-    timer:sleep(250),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    {reply, ok, State#state{jid=JID, pass=Pass, server=Server, port=Port, xmppCom=XmppCom}, get_countdown(State)};
-
-handle_call(get_xmpp_conf, _From, State) ->
-    {reply, [State#state.jid, State#state.pass, State#state.server, State#state.port], State, get_countdown(State)};
-
 handle_call(message_processor, _From, State) ->
     {reply, State#state.message_processor, State, get_countdown(State)};
 
@@ -323,6 +238,8 @@ handle_call(presence_processor, _From, State) ->
     {reply, State#state.presence_processor, State, get_countdown(State)};
 
 handle_call(stop, _From, State) ->
+    lager:info("Component Stopped.~n",[]),
+    ecomponent_con:stop(),
     {stop, normal, ok, State};
 
 handle_call(Info, _From, State) ->
@@ -346,11 +263,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--spec init_metrics() -> ok.
-
-init_metrics() ->
-    metrics:init().
-
 -spec reset_countdown(State::#state{}) -> #state{}.
 
 reset_countdown(State) ->
@@ -370,44 +282,6 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
             100
     end.
 
--spec init_mnesia(Nodes::[atom()], [Callbacks::{M::atom(),F::atom(),A::[term()]}]) -> ok.
-
-init_mnesia([], Callbacks) ->
-    mnesia:create_schema([node()]),
-    mnesia:change_table_copy_type(schema, node(), disc_copies), 
-    mnesia:start(),
-    mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
-    mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
-    lists:foreach(fun({Mod,Fun,Args}) ->
-        lists:foreach(fun({Table, Type, Fields}) ->
-            Res = mnesia:create_table(Table, [{attributes, Fields}]),
-            mnesia:change_table_copy_type(Table, node(), Type), 
-            lager:info("create table (~p): ~p~n", [Res, [Table, {attributes, Fields}]])
-        end, erlang:apply(Mod, Fun, Args))
-    end, Callbacks),
-    ok;
-init_mnesia([Node|Nodes], Callbacks) when Node =:= node() ->
-    init_mnesia(Nodes, Callbacks);
-init_mnesia([Node|Nodes], Callbacks) ->
-    case rpc:call(Node, mnesia, system_info, [running_db_nodes]) of
-        NodeList when length(NodeList) >= 1 -> 
-            mnesia:create_schema([node()]),
-            mnesia:start(),
-            mnesia:change_config(extra_db_nodes, [Node]),
-            mnesia:change_table_copy_type(schema, node(), disc_copies), 
-            mnesia:add_table_copy(monitor, node(), ram_copies),
-            mnesia:add_table_copy(timem, node(), ram_copies), 
-            lists:foreach(fun({Mod,Fun,Args}) ->
-                lists:foreach(fun({Table, Type, _Fields}) ->
-                    Res = mnesia:add_table_copy(Table, node(), Type),
-                    lager:info("add table copy (~p): ~p~n", [Res, [Table, node(), Type]])
-                end, erlang:apply(Mod, Fun, Args))
-            end, Callbacks),
-            ok;
-        _ ->
-            init_mnesia(Nodes, Callbacks)
-    end.
-
 -spec configure() -> {ok, #state{}}.
 
 configure() ->
@@ -418,26 +292,16 @@ configure() ->
     [ lager:info("~p = ~p", [X,Y]) || {X,Y} <- Conf ],
 
     JID = proplists:get_value(jid, Conf),
-    Pass = proplists:get_value(pass, Conf),
-    Server = proplists:get_value(server, Conf),
-    Port = proplists:get_value(port, Conf),
     WhiteList = proplists:get_value(whitelist, Conf, []),
     Processors = proplists:get_value(processors, Conf, []),
 
-    Nodes = proplists:get_value(mnesia_nodes, Conf, []),
-    [ net_kernel:connect_node(X) || X <- Nodes ],
-
-    init_mnesia(Nodes, proplists:get_value(mnesia_callback, Conf, [])),
+    ecomponent_con:start_link(JID, Conf),
+    ecomponent_mnesia:init(Conf), 
     mod_monitor:init(WhiteList),
-    init_metrics(),
+    metrics:init(),
     prepare_processors(Processors),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     {ok, reset_countdown(#state{
-        xmppCom = XmppCom,
         jid = JID,
-        pass = Pass,
-        server = Server,
-        port = Port,
         whiteList = WhiteList,
         maxPerPeriod = proplists:get_value(max_per_period, Conf, ?MAX_PER_PERIOD),
         periodSeconds = proplists:get_value(period_seconds, Conf, ?PERIOD_SECONDS),
@@ -530,7 +394,7 @@ get_processor_by_ns(NS) ->
         _ ->
             case ets:lookup(?NS_PROCESSOR, default) of
                 [{_, {_T, _P}=Result}] -> Result;
-                _ -> []
+                _ -> undefined
             end
     end.
 
@@ -554,32 +418,6 @@ get_presence_processor() ->
             gen_server:call(PID, presence_processor);
         _ -> 
             syslog(crit, io_lib:format("Process not Alive with Name: ~p~n", [?MODULE]))
-    end.
-
--spec make_connection(JID::string(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
-
-make_connection(JID, Pass, Server, Port) -> 
-    XmppCom = exmpp_component:start(),
-    make_connection(XmppCom, JID, Pass, Server, Port, 20).
-    
--spec make_connection(XmppCom::pid(), JID::jid(), Pass::string(), Server::string(), Port::integer(), Tries::integer()) -> {string(), pid()}.    
-
-make_connection(XmppCom, JID, Pass, Server, Port, 0) -> 
-    exmpp_component:stop(XmppCom),
-    make_connection(JID, Pass, Server, Port);
-make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
-    lager:info("Connecting: ~p Tries Left~n",[Tries]),
-    exmpp_component:auth(XmppCom, JID, Pass),
-    try exmpp_component:connect(XmppCom, Server, Port) of
-        R -> 
-            exmpp_component:handshake(XmppCom),
-            lager:info("Connected.~n",[]),
-            {R, XmppCom}
-    catch
-        Exception ->
-            lager:warning("Exception: ~p~n",[Exception]),
-            timer:sleep((20-Tries) * 200),
-            make_connection(XmppCom, JID, Pass, Server, Port, Tries-1)
     end.
 
 -spec prepare_id(Data::string()) -> string().

@@ -51,8 +51,8 @@ init_test(_Config) ->
 
 accept_test(_Config) ->
     ?_assert(begin
-        mod_monitor:init(?WHITELIST),
-        true = mod_monitor:accept("white@localhost", 0, 0),
+        mod_monitor:init([]),
+        true = mod_monitor:accept("white@localhost", 1, 10),
         false = mod_monitor:accept("black@localhost", 1, 10),
         true = mod_monitor:accept("empty@localhost", 1, 10),
         true

@@ -62,9 +62,13 @@ The example file `app.config` have the following sections:
         {ecomponent, [
             {syslog_name, "{{component_name}}" },
             {jid, "{{component_name}}.{{xmpp_domain}}" },
-            {server, "{{xmpp_server_host}}" },
-            {port, {{xmpp_server_port}} },
-            {pass, "{{xmpp_server_pass}}" },
+            {servers, [
+                {server_one, [
+                    {server, "{{xmpp_server_host}}" },
+                    {port, {{xmpp_server_port}} },
+                    {pass, "{{xmpp_server_pass}}" }
+                ]}
+            ]},
             {whitelist, [domain::Binary] }, %% throttle whitelist
             {access_list_get, [{namespace::Atom, [domain::Binary]}]},
             {access_list_set, [{namespace::Atom, [domain::Binary]}]},
