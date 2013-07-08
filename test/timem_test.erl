@@ -26,7 +26,7 @@ setup_test_() ->
     }.
 
 init_per_suite() ->
-    ecomponent:init_mnesia([], [{timem_test, mnesia_callback, []}]),
+    ecomponent_mnesia:init([], [{timem_test, mnesia_callback, []}]),
     [{uuids, [?UUID, ?UUID, ?UUID, ?UUID, ?UUID]}].
 
 end_per_suite(_Config) ->

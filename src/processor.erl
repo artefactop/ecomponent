@@ -9,14 +9,6 @@
 
 -spec process_iq( Params::#params{} ) -> ok.
 
-process_iq(#params{type="error", iq=IQ}) ->
-    lager:info("Get error IQ: ~p", [IQ]),
-    ok;
-
-process_iq(#params{type="result", iq=IQ}) ->
-    lager:info("Get result IQ: ~p", [IQ]),
-    ok;
-
 process_iq(#params{iq=IQ}) ->
     lager:info("Unknown Request: ~p~n", [IQ]),
     Error = exmpp_iq:error(IQ, 'service-unavailable'),
