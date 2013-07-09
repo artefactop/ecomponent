@@ -12,7 +12,7 @@
 -define(MAX_TIME, 10).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, permanent, brutal_kill, Type, [I]}).
+-define(CHILD(I, Type), {I, {I, start_link, []}, transient, brutal_kill, Type, [I]}).
 -define(WORKER(I, Args), {I, {ecomponent_con_worker, start_link, Args}, transient, 5000, worker, [ecomponent_con_worker]}).
 
 %% ===================================================================
