@@ -13,7 +13,8 @@
 %% API
 -export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1,
         get_message_processor/0, get_presence_processor/0, send/5, send/4, 
-        send/3, send/2, send_message/1, send_presence/1, save_id/4, syslog/2, 
+        send/3, send/2, send_message/1, send_message/2, send_presence/1, 
+        send_presence/2, save_id/4, syslog/2, 
         configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
         sync_send/2, sync_send/3]).
 
