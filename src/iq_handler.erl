@@ -5,14 +5,24 @@
 -include("../include/ecomponent.hrl").
 
 %% API
--export([pre_process_iq/6]).
+-export([pre_process_iq/7]).
 
--spec pre_process_iq( undefined | string(), NS::atom(), IQ::term(), From::ecomponent:jid(), Features::[binary()], Info::proplists:proplists()) -> ok.
+-spec pre_process_iq( 
+    Type::undefined | string(), 
+    NS::atom(), 
+    IQ::term(), 
+    From::ecomponent:jid(), 
+    Features::[binary()], 
+    Info::proplists:proplists(),
+    ServerID::atom()) -> ok.
 
-pre_process_iq(Type, IQ, NS, From, Features, Info) ->
+pre_process_iq(Type, IQ, NS, From, Features, Info, ServerID) ->
     Payload = exmpp_iq:get_payload(IQ),
     To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(IQ)),
-    process_iq(#params{from=From, to=To, ns=NS, type=Type, iq=IQ, payload=Payload, features=Features, info=Info}).
+    process_iq(#params{
+        from=From, to=To, ns=NS, type=Type, 
+        iq=IQ, payload=Payload, features=Features, 
+        info=Info, server=ServerID}).
 
 -spec process_iq( Params::#params{} ) -> ok.
 

@@ -8,16 +8,23 @@
 
 -behaviour(gen_server).
 
--include("../include/ecomponent_internal.hrl").
+-include("ecomponent_internal.hrl").
 
 %% API
 -export([prepare_id/1, unprepare_id/1, get_processor/1, get_processor_by_ns/1,
-        get_message_processor/0, get_presence_processor/0, send/4, send/3, send/2, send_message/1,
-        send_presence/1, save_id/4, syslog/2, configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
-        sync_send/2]).
+        get_message_processor/0, get_presence_processor/0, send/5, send/4, 
+        send/3, send/2, send_message/1, send_presence/1, save_id/4, syslog/2, 
+        configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
+        sync_send/2, sync_send/3]).
 
 %% gen_server callbacks
--export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([
+    start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, handle_info/2, 
+    terminate/2, code_change/3]).
+
+%%====================================================================
+%% public API
+%%====================================================================
 
 -spec start_link() -> {ok, Pid::pid()} | {error, Reason::any()}.
 
@@ -28,6 +35,67 @@ start_link() ->
 
 stop() ->
     gen_server:call(?MODULE, stop).
+
+-spec send(Packet::term(), App::atom()) -> ok.
+
+send(Packet, App) ->
+    Payload = exmpp_iq:get_payload(Packet),
+    NS = exmpp_xml:get_ns_as_atom(Payload),
+    send(Packet, NS, App, true).
+
+-spec send(Packet::term(), NS::atom(), App::atom()) -> ok.
+
+send(Packet, NS, App) ->
+    send(Packet, NS, App, true).
+
+-spec send(Packet::term(), NS::atom(), App::atom(), Reply::boolean()) -> ok.
+
+send(Packet, NS, App, Reply) ->
+    send(Packet, NS, App, Reply, undefined).
+
+-spec send(Packet::term(), NS::atom(), App::atom(), Reply::boolean(), ServerID::atom()) -> ok.
+
+send(Packet, NS, App, Reply, ServerID) ->
+    ?MODULE ! {send, Packet, NS, App, Reply, ServerID},
+    ok.
+
+-spec sync_send(Packet::term(), NS::atom()) -> #params{} | {error, timeout}.
+
+sync_send(Packet, NS) ->
+    sync_send(Packet, NS, undefined).
+
+-spec sync_send(Packet::term(), NS::atom(), ServerID::atom()) -> #params{} | {error, timeout}.
+
+sync_send(Packet, NS, ServerID) ->
+    send(Packet, NS, self(), true, ServerID),
+    receive 
+        #response{params=Params=#params{type="result"}} ->
+            Params
+    after 5000 ->
+        {error, timeout}
+    end.
+
+-spec send_message(Packet::term()) -> ok.
+
+send_message(Packet) ->
+    send_message(Packet, undefined).
+
+-spec send_message(Packet::term(), ServerID::atom()) -> ok.
+
+send_message(Packet, ServerID) ->
+    ?MODULE ! {send_message, Packet, ServerID},
+    ok.
+
+-spec send_presence(Packet::term()) -> ok.
+
+send_presence(Packet) ->
+    send_presence(Packet, undefined).
+
+-spec send_presence(Packet::term(), ServerID::atom()) -> ok.
+
+send_presence(Packet, ServerID) ->
+    ?MODULE ! {send_presence, Packet, ServerID},
+    ok.
 
 %%====================================================================
 %% gen_server callbacks
@@ -48,14 +116,19 @@ init([]) ->
     {stop, Reason::any(), State::#state{}}.
 
 handle_info(
-        #received_packet{packet_type=iq, type_attr=Type, raw_packet=IQ, from={Node, Domain, _}=From}, 
+        {#received_packet{packet_type=iq}=ReceivedPacket, ServerID},
         #state{
             maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, 
             features=Features,info=Info,disco_info=DiscoInfo
         }=State) ->
+    #received_packet{
+        type_attr=Type, 
+        raw_packet=IQ, 
+        from={Node, Domain, _}=From}=ReceivedPacket,
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
     spawn(metrics, notify_throughput_iq, [in, Type, NS]),
-    case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
+    JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
+    case mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds) of
         true ->
             spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
             if
@@ -64,7 +137,8 @@ handle_info(
                     ignore;
                 true ->
                     lager:debug("To process packet with NS=~p~n", [NS]),
-                    spawn(iq_handler, pre_process_iq, [Type, IQ, NS, From, Features, Info])
+                    spawn(iq_handler, pre_process_iq, [
+                        Type, IQ, NS, From, Features, Info, ServerID])
             end,
             {noreply, State, get_countdown(State)};
         false ->
@@ -72,11 +146,21 @@ handle_info(
             {noreply, State, get_countdown(State)}
     end;
 
-handle_info(#received_packet{packet_type=message, type_attr=Type, raw_packet=Message, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+handle_info(
+        {#received_packet{packet_type=message}=ReceivedPacket, ServerID}, 
+        #state{
+            maxPerPeriod=MaxPerPeriod, 
+            periodSeconds=PeriodSeconds}=State) ->
+    #received_packet{
+        type_attr=Type, 
+        raw_packet=Message, 
+        from={Node, Domain, _}=From}=ReceivedPacket,
     spawn(metrics, notify_throughput_message, [in, Type]),
-    case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
+    JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
+    case mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds) of
         true ->
-            spawn(message_handler, pre_process_message, [Type, Message, From]),
+            spawn(message_handler, pre_process_message, [
+                Type, Message, From, ServerID]),
             {noreply, State};
         _ ->
             spawn(metrics, notify_dropped_message, [Type]),
@@ -84,18 +168,28 @@ handle_info(#received_packet{packet_type=message, type_attr=Type, raw_packet=Mes
     end;
 
 
-handle_info(#received_packet{packet_type=presence, type_attr=Type, raw_packet=Presence, from={Node, Domain, _}=From}, #state{maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds}=State) ->
+handle_info(
+        {#received_packet{packet_type=presence}=ReceivedPacket, ServerID},
+        #state{
+            maxPerPeriod=MaxPerPeriod, 
+            periodSeconds=PeriodSeconds}=State) ->
+    #received_packet{
+        type_attr=Type, 
+        raw_packet=Presence, 
+        from={Node, Domain, _}=From}=ReceivedPacket,
     spawn(metrics, notify_throughput_presence, [in, Type]),
-    case mod_monitor:accept(list_to_binary(exmpp_jid:to_list(Node, Domain)), MaxPerPeriod, PeriodSeconds) of
+    JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
+    case mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds) of
         true ->
-            spawn(presence_handler, pre_process_presence, [Type, Presence, From]),
+            spawn(presence_handler, pre_process_presence, [
+                Type, Presence, From, ServerID]),
             {noreply, State};
         _ ->
             spawn(metrics, notify_dropped_presence, [Type]),
             {noreply, State}
     end;
 
-handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID}=State) ->
+handle_info({send, OPacket, NS, App, Reply, ServerID}, #state{jid=JID}=State) ->
     Kind = exmpp_iq:get_kind(OPacket),
     From = exmpp_stanza:get_sender(OPacket),
     NewPacket = case From of
@@ -113,18 +207,23 @@ handle_info({send, OPacket, NS, App, Reply}, #state{jid=JID}=State) ->
     end,
     case Kind of
         request when Reply =:= false ->
-            spawn(metrics, notify_throughput_iq, [out, exmpp_iq:get_type(Packet), NS]);
+            spawn(metrics, notify_throughput_iq, [
+                out, exmpp_iq:get_type(Packet), NS]);
         request ->
-            spawn(metrics, notify_throughput_iq, [out, exmpp_iq:get_type(Packet), NS]),
+            spawn(metrics, notify_throughput_iq, [
+                out, exmpp_iq:get_type(Packet), NS]),
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
             spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    ecomponent_con:send(Packet), 
+    case ServerID of 
+        undefined -> ecomponent_con:send(Packet);
+        _ -> ecomponent_con:send(Packet, ServerID)
+    end,
     {noreply, State, get_countdown(State)};
 
-handle_info({send_message, OPacket}, #state{jid=JID}=State) ->
+handle_info({send_message, OPacket, ServerID}, #state{jid=JID}=State) ->
     From = exmpp_stanza:get_sender(OPacket),
     NewPacket = case From of
         undefined ->
@@ -140,15 +239,19 @@ handle_info({send_message, OPacket}, #state{jid=JID}=State) ->
             NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(metrics, notify_throughput_message, [out, case exmpp_stanza:get_type(Packet) of
-        undefined -> <<"normal">>;
-        Type -> Type
-    end]),
-    ecomponent_con:send(Packet), 
+    spawn(metrics, notify_throughput_message, [
+        out, case exmpp_stanza:get_type(Packet) of
+            undefined -> <<"normal">>;
+            Type -> Type
+        end]),
+    case ServerID of 
+        undefined -> ecomponent_con:send(Packet);
+        _ -> ecomponent_con:send(Packet, ServerID)
+    end,
     {noreply, State, get_countdown(State)};
 
 
-handle_info({send_presence, OPacket}, #state{jid=JID}=State) ->
+handle_info({send_presence, OPacket, ServerID}, #state{jid=JID}=State) ->
     From = exmpp_stanza:get_sender(OPacket),
     NewPacket = case From of
         undefined ->
@@ -164,19 +267,29 @@ handle_info({send_presence, OPacket}, #state{jid=JID}=State) ->
             NewPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(metrics, notify_throughput_presence, [out, case exmpp_stanza:get_type(Packet) of 
-        undefined -> <<"available">>;
-        Type -> Type 
-    end]),
-    ecomponent_con:send(Packet), 
+    spawn(metrics, notify_throughput_presence, [
+        out, case exmpp_stanza:get_type(Packet) of 
+            undefined -> <<"available">>;
+            Type -> Type 
+        end]),
+    case ServerID of 
+        undefined -> ecomponent_con:send(Packet);
+        _ -> ecomponent_con:send(Packet, ServerID)
+    end,
     {noreply, State, get_countdown(State)};
 
-handle_info({resend, #matching{tries=Tries, packet=P}=N}, #state{maxTries=Max}=State) when Tries < Max ->
+handle_info({
+        resend, 
+        #matching{tries=Tries, packet=P}=N}, 
+        #state{maxTries=Max}=State) when Tries < Max ->
     save_id(N#matching{tries=Tries+1}),
     ecomponent_con:send(P), 
     {noreply, State, get_countdown(State)};
 
-handle_info({resend, #matching{tries=Tries}=N}, #state{maxTries=Max}=State) when Tries >= Max ->
+handle_info({
+        resend, 
+        #matching{tries=Tries}=N}, 
+        #state{maxTries=Max}=State) when Tries >= Max ->
     lager:warning("Max tries exceeded for: ~p~n", [N]),
     {noreply, State, get_countdown(State)};
 
@@ -200,7 +313,8 @@ handle_cast(_Msg, State) ->
 
 -spec handle_call(Msg::any(), From::{pid(),_}, State::#state{}) ->
     {reply, Reply::any(), State::#state{}} |
-    {reply, Reply::any(), State::#state{}, hibernate | infinity | non_neg_integer()} |
+    {reply, Reply::any(), State::#state{}, hibernate | infinity | 
+    non_neg_integer()} |
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), Reply::any(), State::#state{}} |
@@ -433,47 +547,6 @@ unprepare_id([]) -> [];
 unprepare_id([$x|T]) -> [$<|unprepare_id(T)];
 unprepare_id([$X|T]) -> [$>|unprepare_id(T)];
 unprepare_id([H|T]) -> [H|unprepare_id(T)].
-
--spec send(Packet::term(), App::atom()) -> ok.
-
-send(Packet, App) ->
-    Payload = exmpp_iq:get_payload(Packet),
-    NS = exmpp_xml:get_ns_as_atom(Payload),
-    send(Packet, NS, App, true).
-
--spec send(Packet::term(), NS::atom(), App::atom()) -> ok.
-
-send(Packet, NS, App) ->
-    send(Packet, NS, App, true).
-
--spec send(Packet::term(), NS::atom(), App::atom(), Reply::boolean()) -> ok.
-
-send(Packet, NS, App, Reply) ->
-    ?MODULE ! {send, Packet, NS, App, Reply},
-    ok.
-
--spec sync_send(Packet::term(), NS::atom()) -> #params{} | {error, timeout}.
-
-sync_send(Packet, NS) ->
-    send(Packet, NS, self(), true),
-    receive 
-        #response{params=Params=#params{type="result"}} ->
-            Params
-    after 5000 ->
-        {error, timeout}
-    end.
-
--spec send_message(Packet::term()) -> ok.
-
-send_message(Packet) ->
-    ?MODULE ! {send_message, Packet},
-    ok.
-
--spec send_presence(Packet::term()) -> ok.
-
-send_presence(Packet) ->
-    ?MODULE ! {send_presence, Packet},
-    ok.
 
 -spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().
 
