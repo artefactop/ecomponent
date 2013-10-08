@@ -3,7 +3,7 @@
 
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include("../include/ecomponent.hrl").
+-include("ecomponent.hrl").
 
 -record(state, {
     xmppCom :: pid(),
@@ -62,7 +62,7 @@ init([ID, JID, Conf]) ->
 handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
     timem:insert({ID, ToBin}, State#state.id),
-    ecomponent ! ReceivedPacket,
+    ecomponent ! {ReceivedPacket, State#state.id},
     {noreply, State};
 
 handle_info({send, Packet}, #state{xmppCom=XmppCom}=State) ->

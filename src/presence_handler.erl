@@ -2,20 +2,23 @@
 
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include("../include/ecomponent.hrl").
+-include("ecomponent.hrl").
 
 %% API
--export([pre_process_presence/3]).
+-export([pre_process_presence/4]).
 
--spec pre_process_presence( undefined | string(), Presence::term(), From::ecomponent:jid()) -> ok.
+-spec pre_process_presence( 
+    Type::undefined | string(), 
+    Presence::term(), 
+    From::ecomponent:jid(),
+    ServerID :: atom()) -> ok.
 
-pre_process_presence(Type, Presence, From) ->
-    case Type of
-        "error" ->
-            forward_response(#presence{type=Type, from=From, xmlel=Presence}); 
-        _ -> 
-            forward(#presence{type=Type, from=From, xmlel=Presence})
-    end.
+pre_process_presence("error", Presence, From, ServerID) ->
+    forward_response(#presence{
+        type="error", from=From, xmlel=Presence, server=ServerID});
+pre_process_presence(Type, Presence, From, ServerID) ->
+    forward(#presence{
+        type=Type, from=From, xmlel=Presence, server=ServerID}).
 
 -spec forward( Presence::#presence{} ) -> ok.
 

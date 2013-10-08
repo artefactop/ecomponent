@@ -17,7 +17,8 @@
     payload :: term(),
     iq :: term(),
     features = [] :: [binary()],
-    info = [] :: proplists:proplists()
+    info = [] :: proplists:proplists(),
+    server :: atom()
 }).
 
 -record(response, {
@@ -40,11 +41,13 @@
 -record(message, {
     type ::  undefined | string(),
     from :: ecomponent:jid(),
-    xmlel :: term()
+    xmlel :: term(),
+    server :: atom()
 }).
 
 -record(presence, {
     type ::  undefined | string(),
     from :: ecomponent:jid(),
-    xmlel :: term()
+    xmlel :: term(),
+    server :: atom()
 }).
