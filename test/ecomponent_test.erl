@@ -397,8 +397,8 @@ disco_muted_test(_Config) ->
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),
-    ecomponent ! DiscoPacket,
-    ecomponent ! Packet,
+    ecomponent ! {DiscoPacket, default},
+    ecomponent ! {Packet, default},
     Reply = ?CleanXML(<<"
         <iq xmlns='jabber:client'
             type='result'
@@ -426,7 +426,7 @@ ping_test(_Config) ->
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     Reply = ?CleanXML(<<"
         <iq xmlns='jabber:client'
             type='result'
@@ -454,8 +454,8 @@ message_test(_Config) ->
     meck:expect(dummy, process_message, fun(Message) ->
         Pid ! Message
     end),
-    ecomponent ! Packet,
-    ?try_catch(#message{type="chat", xmlel=Xmlel}, 1000),
+    ecomponent ! {Packet, default},
+    ?try_catch(#message{type="chat", xmlel=_Xmlel}, 1000),
     ?finish().
 
 presence_test(_Config) ->
@@ -473,8 +473,8 @@ presence_test(_Config) ->
     meck:expect(dummy, process_presence, fun(Presence) ->
         Pid ! Presence
     end),
-    ecomponent ! Packet,
-    ?try_catch(#presence{xmlel=Xmlel}, 1000),
+    ecomponent ! {Packet, default},
+    ?try_catch(#presence{xmlel=_Xmlel}, 1000),
     ?finish().
 
 disco_info_test(_Config) ->
@@ -495,7 +495,7 @@ disco_info_test(_Config) ->
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     Reply = ?CleanXML(<<"
         <iq xmlns='jabber:client'
             type='result'
@@ -530,7 +530,7 @@ disco_test(_Config) ->
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     Reply = ?CleanXML(<<"
         <iq xmlns='jabber:client'
             type='result'
@@ -560,7 +560,7 @@ forward_response_module_test(_Config) ->
         from={"bob","localhost",undefined}
     },
     timem:insert(Id, #matching{id="forward_response_module_test", ns='urn:itself', processor=self()}),
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     ?try_catch(#response{ns='urn:itself', params=Params} when is_record(Params,params), 1000),
     ?finish().
 
@@ -586,7 +586,7 @@ forward_ns_in_set_test(_Config) ->
         %?debugFmt("Received params: ~p~n", [Params]),
         Pid ! Params
     end),
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     ?try_catch(#params{
         type="set", from={"bob","localhost",undefined},
         to={undefined,<<"alice.localhost">>,undefined},
@@ -663,7 +663,7 @@ sync_send_test(_Config) ->
         queryns=NS,
         from={undefined,"bob.localhost",undefined}
     },
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     SendXML = ?ToXML(Send_Packet),
     ?try_catch_xml(SendXML, 1000),
     Params = #params{
@@ -686,7 +686,8 @@ sync_send_test(_Config) ->
                     <feature var='jabber:iq:last'/>
                 </query>
             </iq>
-        ">>)
+        ">>),
+        server = default
     },
     ?try_catch(Params, 1000),
     ?finish().
@@ -786,7 +787,7 @@ processor_iq_test(_Config) ->
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     Reply = ?CleanXML(<<"
         <iq xmlns='jabber:client'
             type='error'
@@ -817,7 +818,7 @@ processor_message_test(_Config) ->
             ">>),
         from={"bob","localhost",undefined}
     },
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     ?finish().
 
 processor_presence_test(_Config) ->
@@ -833,5 +834,5 @@ processor_presence_test(_Config) ->
             ">>),
         from={"bob","localhost",undefined}
     },
-    ecomponent ! Packet,
+    ecomponent ! {Packet, default},
     ?finish().
