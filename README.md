@@ -36,6 +36,61 @@ You can set the same processor for iq's, messages and presences or not.
 - `info` part of disco#info identity, as you can see in [XEP-0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html). You can setup the type of identity and the name. Optional.
 - `disco_info` setup if the disco#info should be showed (true) or muted (false). Default value is `true`. Optional.
 
+###server configuration
+
+You can configure only one server to connect through XMPP, several connections (each one with its own id) or shared connections (connections through another node in the cluster).
+
+If you have three servers and you want to connect each one locally, but share the connection to avoid when a connection is lost in one server, you can configure as follow:
+
+```erlang
+%% ecomponent one:
+{servers, [
+    {ejabberd_one, [
+        {server, "localhost"},
+        {port, 5252},
+        {secret, "mypass"}
+    ]},
+    {ejabberd_two, [
+        {node, 'ecomponent_two@server_two'}
+    ]},
+    {ejabberd_three, [
+        {node, 'ecomponent_three@server_three'}
+    ]}
+]}
+
+%% ecomponent two:
+{servers, [
+    {ejabberd_one, [
+        {node, 'ecomponent_one@server_one'}
+    ]},
+    {ejabberd_two, [
+        {server, "localhost"},
+        {port, 5252},
+        {secret, "mypass"}
+    ]},
+    {ejabberd_three, [
+        {node, 'ecomponent_three@server_three'}
+    ]}
+]}
+
+%% ecomponent three:
+{servers, [
+    {ejabberd_one, [
+        {node, 'ecomponent_one@server_one'}
+    ]},
+    {ejabberd_two, [
+        {node, 'ecomponent_two@server_two'}
+    ]},
+    {ejabberd_three, [
+        {server, "localhost"},
+        {port, 5252},
+        {secret, "mypass"}
+    ]}
+]}
+```
+
+When the server wants to send a message always try to send to the local connection but, if this is down, the message will be tried by the connections in another nodes in the cluster.
+
 ###folsom
 
 Dependency: [folsom](https://github.com/boundary/folsom_cowboy)
@@ -70,6 +125,9 @@ The example file `app.config` have the following sections:
                     {server, ServerHost :: string()},
                     {port, ServerPort :: non_neg_integer()},
                     {pass, ServerPass :: string()}
+                ]},
+                {server_shared, [
+                    {node, Node :: atom()}
                 ]}
             ]},
 

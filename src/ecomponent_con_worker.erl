@@ -6,12 +6,14 @@
 -include("ecomponent.hrl").
 
 -record(state, {
+    type = server :: server | node,
     xmppCom :: pid(),
     jid :: ecomponent:jid(),
     id :: atom(),
     pass :: string(),
     server :: string(),
-    port :: integer()
+    port :: integer(),
+    node :: atom()
 }).
 
 %% gen_server callbacks
@@ -43,15 +45,22 @@ init([ID, JID, Conf]) ->
     Pass = proplists:get_value(pass, Conf),
     Server = proplists:get_value(server, Conf),
     Port = proplists:get_value(port, Conf),
-    {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    {ok, #state{
-        xmppCom = XmppCom,
-        id = ID,
-        jid = JID,
-        pass = Pass,
-        server = Server,
-        port = Port
-    }}.
+    case Server of
+        undefined ->
+            Node = proplists:get_value(node, Conf),
+            {ok, #state{type = node, node = Node}};
+        _ ->
+            {_, XmppCom} = make_connection(JID, Pass, Server, Port),
+            {ok, #state{
+                type = server,
+                xmppCom = XmppCom,
+                id = ID,
+                jid = JID,
+                pass = Pass,
+                server = Server,
+                port = Port
+            }}
+    end.
 
 
 -spec handle_info(Msg::any(), State::#state{}) ->
@@ -63,6 +72,10 @@ handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
     timem:insert({ID, ToBin}, State#state.id),
     ecomponent ! {ReceivedPacket, State#state.id},
+    {noreply, State};
+
+handle_info({send, Packet}, #state{type=node, id=ID, node=Node}=State) ->
+    rpc:cast(Node, ecomponent, send, [Packet, 'from_another_node', undefined, false, ID]),
     {noreply, State};
 
 handle_info({send, Packet}, #state{xmppCom=XmppCom}=State) ->
