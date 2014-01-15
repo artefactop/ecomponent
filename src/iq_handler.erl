@@ -33,16 +33,17 @@ process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
 process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO, features=Features, info=Info}) ->
     Identity = case {
         proplists:get_value(type, Info),
-        proplists:get_value(name, Info)
+        proplists:get_value(name, Info),
+        proplists:get_value(category, Info, <<"component">>)
     } of 
-        {undefined, _} -> [];
-        {_, undefined} -> [];
-        {undefined, undefined} -> [];
-        {Type, Name} ->
+        {undefined, _, _} -> [];
+        {_, undefined, _} -> [];
+        {undefined, undefined, _} -> [];
+        {Type, Name, Category} ->
             [exmpp_xml:element(?NS_DISCO_INFO, 'identity', [
                 exmpp_xml:attribute(<<"type">>, Type),
                 exmpp_xml:attribute(<<"name">>, Name),
-                exmpp_xml:attribute(<<"category">>, <<"component">>) 
+                exmpp_xml:attribute(<<"category">>, Category) 
             ], [])]
     end,
     Result = exmpp_iq:result(IQ, exmpp_xml:element(?NS_DISCO_INFO, 'query', [],

@@ -505,7 +505,7 @@ disco_info_test(_Config) ->
             <query xmlns='http://jabber.org/protocol/disco#info'>
                 <identity type='jabber:last' 
                           name='Last Component' 
-                          category='component'/>
+                          category='text'/>
                 <feature var='jabber:iq:last'/>
             </query>
         </iq>
