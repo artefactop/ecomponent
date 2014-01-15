@@ -10,16 +10,12 @@
                   lager,
                   mnesia,
                   syslog,
-                  confetti,
                   bear,
                   folsom,
                   ranch,
                   xmerl,
-                  cowboy,
-                  folsom_cowboy,
                   uuid
                  ]},
   {mod, { ecomponent_app, []}},
   {env, []}
 ]}.
-

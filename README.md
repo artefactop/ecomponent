@@ -36,9 +36,11 @@ You can set the same processor for iq's, messages and presences or not.
 - `info` part of disco#info identity, as you can see in [XEP-0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html). You can setup the type of identity and the name. Optional.
 - `disco_info` setup if the disco#info should be showed (true) or muted (false). Default value is `true`. Optional.
 
-###[folsom_cowboy](https://github.com/bosqueviejo/folsom_cowboy)
+###folsom
 
-Automatically ecomponent provide you metrics, you can set up the port when you want read it, `port::integer()`.  
+Dependency: [folsom](https://github.com/boundary/folsom_cowboy)
+
+Automatically ecomponent provide you metrics using folsom. In old versions we use [folsom_cowboy](https://github.com/altenwald/folsom_cowboy) but it's better you can select the better way for you to collect this data.
 
 The default values are:
 
@@ -50,66 +52,64 @@ The default values are:
 - message throughput by type (normal, chat, groupchat, ...). [spiral](https://github.com/boundary/folsom#spiral-meter).
 - message dropped by type. [spiral](https://github.com/boundary/folsom#spiral-meter).
 
-###confetti
-[confetti configuration](https://github.com/manuel-rubio/confetti)
-
 ###lager
-[lager configuration](https://github.com/basho/lager#configuration)
+
+Dependency: [lager configuration](https://github.com/basho/lager#configuration)
+
+###Config file example
 
 The example file `app.config` have the following sections:
 ```
     [
         {ecomponent, [
-            {syslog_name, "{{component_name}}" },
-            {jid, "{{component_name}}.{{xmpp_domain}}" },
+            {syslog_name, ComponentName :: string()},
+            {jid, ComponentDomain :: string()},
+
             {servers, [
                 {server_one, [
-                    {server, "{{xmpp_server_host}}" },
-                    {port, {{xmpp_server_port}} },
-                    {pass, "{{xmpp_server_pass}}" }
+                    {server, ServerHost :: string()},
+                    {port, ServerPort :: non_neg_integer()},
+                    {pass, ServerPass :: string()}
                 ]}
             ]},
+
+            {throttle, boolean()},
             {whitelist, [domain::Binary] }, %% throttle whitelist
+            {max_per_period, MaxPerPeriod :: non_neg_integer()},
+            {period_seconds, PeriodSeconds :: non_neg_integer()},
+
             {access_list_get, [{namespace::Atom, [domain::Binary]}]},
             {access_list_set, [{namespace::Atom, [domain::Binary]}]},
-            {max_per_period, {{max_per_period}} },
-            {period_seconds, {{period_seconds}} },
+
             {processors, [
                 {default, mod_processor | app_processor}
             ]},
             {message_processor, message_processor},
             {presence_processor, presence_processor},
+
             {mnesia_nodes, [Node::atom()]},
             {mnesia_callback, [Callback::{M::atom(),F::atom(),A::[term()]}]},
+
             {features, [
                 <<"jabber:iq:last">> | [binary()]
             ]},
             {info, [
                 {type, <<"jabber:protocol:boot">>},
-                {name, <<"Boot">>}
+                {name, <<"Boot">>},
+                {category, <<"text">>}
             ]},
             {disco_info, boolean()}
-        ]},
-    
-        {folsom_cowboy,[
-            {port, 5565}
-        ]},
-
-        {confetti, [
-            {mgmt_config_location, {"app.config", "etc"}},
-            %{plugins, [myapp_conf::Atom]},
-            {port, 50000}
         ]},
     
         {lager, [
             {handlers, [
                 {lager_console_backend, info},
                 {lager_file_backend, [
-                    {"{{platform_log_dir}}/error.log", error, 10485760, "$D0", 5},
-                    {"{{platform_log_dir}}/info.log", info, 10485760, "$D0", 5}
+                    {"log/error.log", error, 10485760, "$D0", 5},
+                    {"log/info.log", info, 10485760, "$D0", 5}
                 ]}
             ]},
-            {crash_log, "{{platform_log_dir}}/crash.log"},
+            {crash_log, "log/crash.log"},
             {crash_log_msg_size, 65536},
             {crash_log_size, 10485760},
             {crash_log_date, "$D0"},
@@ -117,26 +117,6 @@ The example file `app.config` have the following sections:
             {error_logger_redirect, true}
         ]}
     ].
-```
-
-The file `vars.config` completes the app.config with simple format to configure specific parameters:
-
-```
-    %% Platform-specific installation paths
-    {platform_bin_dir,   "./bin"}.
-    {platform_data_dir,  "./data"}.
-    {platform_etc_dir,   "./etc"}.
-    {platform_lib_dir,   "./lib"}.
-    {platform_log_dir,   "./log"}.
-    
-    %% ecomponent
-    {xmpp_server_host,  "localhost"}.
-    {xmpp_server_port,  8989}.
-    {xmpp_server_pass,  "secret"}.
-    {max_per_period,    10}.
-    {period_seconds,    6}.
-    {xmpp_domain,       "localhost"}.
-    {component_name,    "mycomponent"}. %% subdomain of jid
 ```
 
 On processors you can indicate a list of processor by namespace or choose one by default,

@@ -37,7 +37,7 @@ init_per_suite() ->
     ?meck_component(),
     ?meck_metrics(),
     ?run_exmpp(),
-    ?meck_confetti([[{ecomponent, [
+    ?meck_config([
         {syslog_name, "ecomponent" },
         {jid, "ecomponent.test" },
         {server, "localhost" },
@@ -61,10 +61,10 @@ init_per_suite() ->
         {message_processor, {mod, dummy}},
         {presence_processor, {mod, dummy}},
         {features, [<<"jabber:iq:last">>]}
-    ]}]]),
+    ]),
     meck:new(ecomponent_sup),
     meck:expect(ecomponent_sup, start_child, fun(_,_,_) -> ok end),
-    meck:unload(confetti). 
+    meck:unload(application). 
 
 end_per_suite(_Config) ->
     mnesia:stop(),
@@ -111,7 +111,7 @@ init(multiconnection_test) ->
         ]},
         {features, [<<"jabber:iq:last">>]}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(server_one, "ecomponent.test", [
@@ -151,11 +151,12 @@ init(disco_info_test) ->
         {disco_info, true},
         {info, [
             {type, <<"jabber:last">>},
-            {name, <<"Last Component">>}
+            {name, <<"Last Component">>},
+            {category, <<"text">>}
         ]},
         {features, [<<"jabber:iq:last">>]}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
@@ -185,7 +186,7 @@ init(disco_muted_test) ->
         {presence_processor, {mod, dummy}},
         {disco_info, false}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
@@ -215,7 +216,7 @@ init(save_id_expired_test) ->
         {presence_processor, {mod, dummy}},
         {request_timeout, 2}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
@@ -235,12 +236,12 @@ init(sync_send_test) ->
             {default, {mod, dummy}}
         ]}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
 init(config_test) ->
-    ?meck_confetti([[{ecomponent, [
+    ?meck_config([
         {syslog_name, "ecomponent" },
         {jid, "ecomponent.test" },
         {server, "localhost" },
@@ -267,7 +268,7 @@ init(config_test) ->
         {mnesia_callback, [
             {dummy, tables, []}
         ]}
-    ]}]]);
+    ]);
 init(processor_test) ->
     Conf = [
         {syslog_name, "ecomponent" },
@@ -292,7 +293,7 @@ init(processor_test) ->
         ]},
         {disco_info, false}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
@@ -322,13 +323,13 @@ init(_) ->
         {presence_processor, {mod, dummy}},
         {features, [<<"jabber:iq:last">>]}
     ],
-    ?meck_confetti([[{ecomponent, Conf}]]),
+    ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf).
 
 -define(finish(), begin
-    meck:unload(confetti),
+    meck:unload(application),
     meck:unload(dummy),
     ecomponent:stop(),
     ?_assert(true)
@@ -345,7 +346,7 @@ config_test(_Config) ->
     mnesia:table_info(dummy, all), 
     lager:info("~p~n", [State]),
     timer:sleep(250), 
-    meck:unload(confetti),
+    meck:unload(application),
     ?_assertMatch(#state{
         jid = "ecomponent.test",
         maxPerPeriod = 15,
@@ -715,8 +716,8 @@ access_list_set_test(_Config) ->
     init(access_list_set_test),
     Bob = {undefined, "bob.localhost", undefined},
     Bob1 = {undefined, "bob1.localhost", undefined},
-    true = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob}),
-    false = gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob1}),
+    ?assert(gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob})),
+    ?assertNot(gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob1})),
     ?finish().
 
 multiconnection_test(_Config) ->
@@ -763,7 +764,7 @@ multiconnection_test(_Config) ->
     ">>),
     ?try_catch_xml(Reply, 1000),
     meck:unload(timem), 
-    meck:unload(confetti),
+    meck:unload(application),
     meck:unload(dummy),
     ecomponent:stop(),
     ?_assert(true).

@@ -400,7 +400,7 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
 -spec configure() -> {ok, #state{}}.
 
 configure() ->
-    Conf = ?FETCH(mgmt_conf, ecomponent, []),
+    Conf = application:get_all_env(ecomponent),
     Facility = proplists:get_value(syslog_facility, Conf, local7),
     Name = proplists:get_value(syslog_name, Conf, "ecomponent"),
     init_syslog(Facility, Name),
@@ -411,8 +411,11 @@ configure() ->
     Processors = proplists:get_value(processors, Conf, []),
 
     ecomponent_con:start_link(JID, Conf),
-    ecomponent_mnesia:init(Conf), 
-    mod_monitor:init(WhiteList),
+    ecomponent_mnesia:init(Conf),
+    case proplists:get_value(throttle, Conf, true) of
+        true -> mod_monitor:init(WhiteList);
+        false -> ok
+    end,
     metrics:init(),
     prepare_processors(Processors),
     {ok, reset_countdown(#state{

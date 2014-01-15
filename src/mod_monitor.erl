@@ -14,7 +14,7 @@
 
 -export([init/1, accept/3]).
 
--include("../include/ecomponent.hrl").
+-include("ecomponent.hrl").
 
 -spec init( Whitelist :: list(binary()) ) -> ok.
 
@@ -36,7 +36,12 @@ prepare_whitelist(L) ->
 -spec is_white( K :: string() ) -> boolean().
 
 is_white(K) ->
-    [{K, allowed}] =:= ets:lookup(?WLIST_TABLE, K).
+    case ets:info(?WLIST_TABLE) of
+        undefined ->
+            true;
+        _ ->
+            [{K, allowed}] =:= ets:lookup(?WLIST_TABLE, K)
+    end.
 
 -spec accept( Id :: string(), Max :: integer(), Period :: integer() ) -> boolean().
 

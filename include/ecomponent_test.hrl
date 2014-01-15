@@ -39,9 +39,9 @@ end).
     end)
 end).
 
--define(meck_confetti(Config), begin
-    meck:new(confetti),
-    meck:expect(confetti, fetch, 1, Config) 
+-define(meck_config(Config), begin
+    meck:new(application, [passthrough, unstick]),
+    meck:expect(application, get_all_env, 1, Config) 
 end).
 
 -define(meck_component(), begin 

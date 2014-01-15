@@ -1,7 +1,6 @@
 -include_lib("exmpp/include/exmpp_jid.hrl").
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include_lib("confetti/include/confetti.hrl").
 -include("ecomponent.hrl").
 
 -type jid() :: { Name::string(), Server::string(), Resource::string() }.
