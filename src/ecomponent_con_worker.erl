@@ -48,6 +48,7 @@ init([ID, JID, Conf]) ->
     case Server of
         undefined ->
             Node = proplists:get_value(node, Conf),
+            erlang:monitor_node(Node, true),
             {ok, #state{type = node, node = Node}};
         _ ->
             {_, XmppCom} = make_connection(JID, Pass, Server, Port),
@@ -82,8 +83,20 @@ handle_info({send, Packet}, #state{xmppCom=XmppCom}=State) ->
     exmpp_component:send_packet(XmppCom, Packet),
     {noreply, State};
 
+handle_info({down, Node}, #state{node=Node}=State) ->
+    lager:info("Connection to ~p closed. Trying to reconnect...~n", [Node]),
+    ecomponent_con:down(State#state.id),
+    case net_kernel:connect_node(Node) of
+    true ->
+        lager:info("Reconnected.~n", []),
+        ecomponent_con:active(State#state.id);
+    false ->
+        timer:sleep(500)
+    end,
+    {noreply, State};
+
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
-    lager:info("Connection Closed. Trying to Reconnect...~n", []),
+    lager:info("Connection to ~s closed. Trying to reconnect...~n", [Server]),
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected.~n", []),
