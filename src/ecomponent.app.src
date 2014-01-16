@@ -12,7 +12,6 @@
                   syslog,
                   bear,
                   folsom,
-                  ranch,
                   xmerl,
                   uuid
                  ]},
