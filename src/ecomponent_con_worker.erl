@@ -88,7 +88,7 @@ handle_info({down, Node}, #state{node=Node}=State) ->
     ecomponent_con:down(State#state.id),
     case net_kernel:connect_node(Node) of
     true ->
-        lager:info("Reconnected.~n", []),
+        lager:info("Reconnected ~p.~n", [Node]),
         ecomponent_con:active(State#state.id);
     false ->
         timer:sleep(500)
@@ -99,15 +99,15 @@ handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port
     lager:info("Connection to ~s closed. Trying to reconnect...~n", [Server]),
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    lager:info("Reconnected.~n", []),
+    lager:info("Reconnected ~s.~n", [Server]),
     ecomponent_con:active(State#state.id),
     {noreply, State#state{xmppCom=XmppCom}};
 
 handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
-    lager:info("Connection Closed. Trying to Reconnect...~n", []),
+    lager:info("Connection to ~s closed. Trying to reconnect...~n", [Server]),
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-    lager:info("Reconnected.~n", []),
+    lager:info("Reconnected ~s.~n", [Server]),
     ecomponent_con:active(State#state.id),
     {noreply, State#state{xmppCom=XmppCom}};
 
