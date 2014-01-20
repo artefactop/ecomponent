@@ -30,7 +30,7 @@ process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
     Result = exmpp_iq:result(IQ),
     ecomponent:send(Result, ?NS_PING, undefined);
 
-process_iq(#params{type="get", iq=IQ, ns=?NS_DISCO_INFO, features=Features, info=Info}) ->
+process_iq(#params{type="get", to={undefined,_,_}, iq=IQ, ns=?NS_DISCO_INFO, features=Features, info=Info}) ->
     Identity = case {
         proplists:get_value(type, Info),
         proplists:get_value(name, Info),
