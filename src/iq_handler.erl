@@ -90,7 +90,27 @@ forward_ns(#params{ns=NS}=Params) ->
         undefined -> 
             spawn(processor, process_iq, [Params]);
         {mod, P} ->
-            spawn(P, process_iq, [Params]);
+            spawn(fun() ->
+                try
+                    P:process_iq(Params)
+                catch Error ->
+                    lager:error("call to module ~p die: ~p~n", [P, Error]),
+                    Error = exmpp_xml:element(undefined, 'error', [
+                        exmpp_xml:attribute(<<"type">>, <<"wait">>),
+                        exmpp_xml:attribute(<<"code">>, <<"500">>)
+                    ], [
+                        exmpp_xml:element(
+                            'urn:ietf:params:xml:ns:xmpp-stanzas', 
+                            'internal-server-error', [], []),
+                        exmpp_xml:element(
+                            'urn:ietf:params:xml:ns:xmpp-stanzas',
+                            'text', [], [
+                                exmpp_xml:cdata(<<"Server crash!">>)
+                    ])]),
+                    Result = exmpp_iq:error(Params#params.iq, Error),
+                    ecomponent:send(Result, ?NS_DISCO_ITEMS, ecomponent, false)
+                end
+            end);
         {app, Name} ->
             PID = whereis(Name),
             case erlang:is_pid(PID) andalso erlang:is_process_alive(PID) of
@@ -114,4 +134,3 @@ forward_response(#params{iq=IQ}=Params) ->
         _ ->
             ok
     end.
-
