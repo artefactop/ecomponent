@@ -62,8 +62,8 @@ init_per_suite() ->
         {presence_processor, {mod, dummy}},
         {features, [<<"jabber:iq:last">>]}
     ]),
-    meck:new(ecomponent_sup),
-    meck:expect(ecomponent_sup, start_child, fun(_,_,_) -> ok end),
+    meck:new(ecomponent_con_sup),
+    meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end),
     meck:unload(application). 
 
 end_per_suite(_Config) ->

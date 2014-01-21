@@ -85,12 +85,12 @@ down(ID) ->
 init([JID, Conf]) ->
     {ok, #state{active=case proplists:get_value(servers, Conf) of 
         undefined ->
-            spawn(fun() -> ecomponent_sup:start_child(default, JID, Conf) end),
+            spawn(fun() -> ecomponent_con_sup:start_child(default, JID, Conf) end),
             [default];
         SrvInfo ->
             lists:map(fun({ID, SrvConf}) ->
                 spawn(fun() -> 
-                    ecomponent_sup:start_child(ID, JID, SrvConf)
+                    ecomponent_con_sup:start_child(ID, JID, SrvConf)
                 end),
                 ID
             end, SrvInfo)
