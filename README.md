@@ -166,3 +166,7 @@ And in the config file:
     ]}
 ...
 ```
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/artefactop/ecomponent/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
