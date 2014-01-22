@@ -40,10 +40,12 @@ start_link() ->
 init([]) ->
     {ok, {{one_for_one, ?MAX_RETRIES, ?MAX_TIME}, [
         ?CHILD(ecomponent, worker),
+        ?CHILD(ecomponent_con, worker),
         ?CHILD(ecomponent_con_sup, supervisor)
     ]}};
 init([MaxR, MaxT]) ->
     {ok, {{one_for_one, MaxR, MaxT}, [
         ?CHILD(ecomponent, worker),
+        ?CHILD(ecomponent_con, worker),
         ?CHILD(ecomponent_con_sup, supervisor)
     ]}}.
