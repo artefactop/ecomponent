@@ -14,11 +14,13 @@
     ServerID :: atom()) -> ok.
 
 pre_process_presence("error", Presence, From, ServerID) ->
+    To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(Presence)),
     forward_response(#presence{
-        type="error", from=From, xmlel=Presence, server=ServerID});
+        type="error", from=From, to=To, xmlel=Presence, server=ServerID});
 pre_process_presence(Type, Presence, From, ServerID) ->
+    To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(Presence)),
     forward(#presence{
-        type=Type, from=From, xmlel=Presence, server=ServerID}).
+        type=Type, from=From, to=To, xmlel=Presence, server=ServerID}).
 
 -spec forward( Presence::#presence{} ) -> ok.
 

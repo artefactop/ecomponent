@@ -17,11 +17,13 @@ pre_process_message(undefined, Message, From, ServerID) ->
     forward(#message{
         type="normal", from=From, xmlel=Message, server=ServerID});
 pre_process_message("error", Message, From, ServerID) ->
+    To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(Message)),
     forward_response(#message{
-        type="error", from=From, xmlel=Message, server=ServerID});
+        type="error", from=From, to=To, xmlel=Message, server=ServerID});
 pre_process_message(Type, Message, From, ServerID) ->
+    To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(Message)),
     forward(#message{
-        type=Type, from=From, xmlel=Message, server=ServerID}).
+        type=Type, from=From, to=To, xmlel=Message, server=ServerID}).
 
 -spec forward( Message::#message{} ) -> ok.
 

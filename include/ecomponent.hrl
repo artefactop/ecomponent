@@ -41,6 +41,7 @@
 -record(message, {
     type ::  undefined | string(),
     from :: ecomponent:jid(),
+    to :: ecomponent:jid(),
     xmlel :: term(),
     server :: atom()
 }).
@@ -48,6 +49,7 @@
 -record(presence, {
     type ::  undefined | string(),
     from :: ecomponent:jid(),
+    to :: ecomponent:jid(),
     xmlel :: term(),
     server :: atom()
 }).
