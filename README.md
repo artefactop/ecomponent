@@ -15,26 +15,76 @@ By default support:
 Configuration
 -------------
 
-###ecomponent
+###ecomponent (general params)
+
+The basic configuration for the ecomponent project is as follow:
 
 - `syslog_name::string()` default value is `ecomponent`. Optional.  
 - `jid::string()` external component domain.  
-- `server::string()` xmpp server host.  
-- `port::integer()` xmpp server port.  
-- `pass::string()` xmpp server password.  
-- `whitlist::list(domain::Binary)` a list of domain for their request are not dropped, other way the request will be dropped if send more than 10 request in minus 6 seconds by default. Can be empty.  
-- `access_list_get::list(tuple(Atom, list(Binary)))` a list of {Namespace, list(domain::Binary)}. You can configure what domain can send iq get by namespace. Can be empty.  
-- `access_list_set::list(tuple(Atom, list(Binary)))` a list of {Namespace, list(domain::Binary)}. You can configure what domain can send iq set by namespace. Can be empty.
-- `max_per_period::integer()` number of reques per period for drop packets. Optional.  
-- `period_seconds::integer()` amount of time for period. Optional.  
-- `processors` configure what module or app will be process the iq's. You can set a default value for all namespaces or configure by pair `{namespace::Atom, mod_processor | app_processor}` where `mod_processor:: {mod, Module::atom()}` and  `app_processor:: {app, App::atom()}`.  
+
+###processors
+
+The processors handle requests depend on if the stanza is an IQ, a presence or a messsage:
+
+- `processors` configure what module or app will be process the iq's. You can set a `default` value for all namespaces or configure by pair `{namespace::atom() | default, mod_processor | app_processor}` where `mod_processor:: {mod, Module::atom()}` and  `app_processor:: {app, App::atom()}`.  
 - `message_processor` set one processor for messages. Optional.  
 - `presence_processor` set one processor for presence stanzas. Optional.  
-You can set the same processor for iq's, messages and presences or not.  
-- `mnesia_nodes` set name of mnesia node if you want set your external component like cluster. Optional.  
-- `mnesia_callback` identify a function that should returns a list of tables to create and distribute in the mnesia cluster. Optional.
-- `info` part of disco#info identity, as you can see in [XEP-0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html). You can setup the type of identity and the name. Optional.
-- `disco_info` setup if the disco#info should be showed (true) or muted (false). Default value is `true`. Optional.
+
+A processor could be an application `{app, App::atom()}` or a module `{mod, Module::atom()}`. By example, if you want to handle only messages and pass the processing task to a module, you can set this in the config file:
+
+```erlang
+{message_processor, {mod, my_message_processor}}
+```
+
+In this example the module `my_message_processor` must exists and must have the following function:
+
+```erlang
+-module(my_message_processor).
+-export([process_message/1]).
+
+-include_lib("ecomponent/include/ecomponent.hrl").
+
+process_message(#message{}=Message) ->
+    ok.
+```
+
+The record `#message{}` can be found [here](https://github.com/altenwald/ecomponent/blob/master/include/ecomponent.hrl#L41).
+
+Now, if we want to add processors for IQ and presence, the configuration should be:
+
+```erlang
+{presence_processor, {mod, my_processor}},
+{message_processor, {mod, my_processor}},
+{processors, [
+    {default, {mod, my_processor}}
+]}
+```
+
+Note that you can change `default` for one namespace and filter the requests by namespace in diferent modules or applications.
+
+The code to use this configuration should be:
+
+```erlang
+-module(my_processor).
+-export([
+    process_presence/1,
+    process_message/1,
+    process_iq/1
+]).
+
+-include_lib("ecomponent/include/ecomponent.hrl").
+
+process_presence(#presence{}=Presence) ->
+    ok.
+
+process_message(#message{}=Message) ->
+    ok.
+
+process_iq(#params{}=Params) ->
+    ok.
+```
+
+The use of `app` instead of `mod` is only recommended when a state should be kept between requests. Be careful with this, because the use of `app` could generate a bottleneck.
 
 ###server configuration
 
@@ -90,6 +140,106 @@ If you have three servers and you want to connect each one locally, but share th
 ```
 
 When the server wants to send a message always try to send to the local connection but, if this is down, the message will be tried by the connections in another nodes in the cluster.
+
+###throttle configuration
+
+If you want to avoid a collapse for your component, you can configure a throttle with the follow params inside the `ecomponent` main tag:
+
+- `throttle::boolean()` enable/disable the throttle. `true` by default. Optional.
+- `whitelist::list(domain::Binary)` a list of domain for their request are not dropped, other way the request will be dropped if send more than 10 request in minus 6 seconds by default. Can be empty.  
+- `max_per_period::integer()` number of reques per period for drop packets. Optional.  
+- `period_seconds::integer()` amount of time for period. Optional.  
+
+All the request arriving to the component will be anoted in `mod_monitor`. If the requests for one user achieve more than `max_per_period` in the `period_seconds`, the requests from this JID will be dropped until the conditions will be false again.
+
+All the JIDs inside `whitelist` will be ignored by the monitor.
+
+###granting access to IQs
+
+The requests to IQs can be filtered by users (JIDs) using ACLs. This ACLs are set by namespace, type and JID. A user (JID) can be granted for a namespace in a specific type. The params for configuration inside `ecomponent` tag are the following:
+
+- `access_list_get::list(tuple(Atom, list(Binary)))` a list of {Namespace, list(domain::Binary)}. You can configure what domain can send iq get by namespace. Can be empty.  
+- `access_list_set::list(tuple(Atom, list(Binary)))` a list of {Namespace, list(domain::Binary)}. You can configure what domain can send iq set by namespace. Can be empty.
+
+It's possible specify that `user1@domain.com` can access to `jabber:iq:time` for the component, but only in `get` type:
+
+```erlang
+{access_list_get, [
+    <<"user1@domain.com">>
+]}
+```
+
+Note that if the configuration for these parameters is omitted all the users can access to all the IQs.
+
+###disco info
+
+There are a couple of params to configure the behaviour when the server requires a `disco#info` from the component. In this case we can use set a reply like this:
+
+```xml
+  <query xmlns='http://jabber.org/protocol/disco#info'>
+    <identity
+        category='conference'
+        type='text'
+        name='Play-Specific Chatrooms'/>
+    <feature var='http://jabber.org/protocol/disco#info'/>
+    <feature var='http://jabber.org/protocol/disco#items'/>
+    <feature var='http://jabber.org/protocol/muc'/>
+    <feature var='jabber:iq:register'/>
+    <feature var='jabber:iq:search'/>
+    <feature var='jabber:iq:time'/>
+    <feature var='jabber:iq:version'/>
+  </query>
+```
+
+Only we need to add this configuration to the config file:
+
+```erlang
+{features, [
+    <<"http://jabber.org/protocol/disco#info">>,
+    <<"http://jabber.org/protocol/disco#items">>,
+    <<"http://jabber.org/protocol/muc">>,
+    <<"jabber:iq:register">>,
+    <<"jabber:iq:search">>,
+    <<"jabber:iq:time">>,
+    <<"jabber:iq:version">>
+]},
+{info, [
+    {type, <<"text">>},
+    {name, <<"Play-Specific Chatrooms">>},
+    {category, <<"conference">>}
+]},
+{disco_info, true}
+```
+
+###clustering with mnesia
+
+Scale ecomponent is pretty easy with these params:
+
+- `mnesia_nodes::[node()]` set name of mnesia node if you want set your external component like cluster. Optional.  
+- `mnesia_callback` identify a function that should returns a list of tables to create and distribute in the mnesia cluster. Optional.
+
+With `mnesia_nodes` it's possible to communicate the nodes in a easy way, and auto-configure Mnesia to work in cluster.
+
+As a plus, it's possible use Mnesia for create new tables easily inside the cluster. By example:
+
+```erlang
+-module(mycode).
+-compile([export_all]).
+
+-record(mytable, {id, name, description}).
+
+create_tables() -> [
+    {mytable, disc_copies, record_info(fields, mytable)}
+].
+```
+
+And in the config file:
+
+```erlang
+{mnesia_callback, [
+    {mycode, create_tables, []}
+]}
+```
 
 ###folsom
 
@@ -179,28 +329,3 @@ The example file `app.config` have the following sections:
 
 On processors you can indicate a list of processor by namespace or choose one by default,
 the processor can be a module or an app.
-
-###clustering
-
-If you use Mnesia to do a share info in a serveral nodes cluster, you can create your tables as follow:
-
-```erlang
--module(mycode).
--compile([export_all]).
-
--record(mytable, {id, name, description}).
-
-create_tables() -> [
-    {mytable, disc_copies, record_info(fields, mytable)}
-].
-```
-
-And in the config file:
-
-```erlang
-...
-    {mnesia_callback, [
-        {mycode, create_tables, []}
-    ]}
-...
-```
