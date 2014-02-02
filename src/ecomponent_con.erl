@@ -48,16 +48,16 @@ send(Info, ID) ->
             lager:debug("Connecting to (fix) pool: ~p~n", [ID]),
             ID ! {send, Info};
         _ ->
-            case {whereis(?MODULE), gen_server:call(?MODULE, get_pool)} of 
-                {undefined, _} ->
+            case catch gen_server:call(?MODULE, get_pool) of 
+                {'EXIT', _} ->
                     lager:error("ecomponent_con DOWN... waiting..."),
                     timer:sleep(?TIME_TO_SLEEP),
                     send(Info);
-                {_, []} ->
+                [] ->
                     lager:error("no pool active to send the packet... waiting..."),
                     timer:sleep(?TIME_TO_SLEEP),
                     send(Info);
-                {_, Pool} ->
+                Pool ->
                     lager:debug("Connecting to pool: ~p~n", [Pool]),
                     Pool ! {send, Info}
             end
