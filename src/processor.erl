@@ -2,7 +2,7 @@
 
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include("../include/ecomponent.hrl").
+-include("ecomponent.hrl").
 
 %% API
 -export([process_iq/1, process_message/1, process_presence/1]).
