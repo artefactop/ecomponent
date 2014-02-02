@@ -52,7 +52,7 @@ accept(Id, Max, Period) ->
         false ->
             N = get_node(Id),
             Counter = N#monitor.counter+1,
-            D = (timer:now_diff(now(), N#monitor.timestamp)) / 1000000,
+            D = (timer:now_diff(os:timestamp(), N#monitor.timestamp)) / 1000000,
             if 
                 D > Period ->
                     NC = case Counter - Max * trunc(D / Period + 1) of
@@ -60,10 +60,10 @@ accept(Id, Max, Period) ->
                         C -> C
                     end,
                     lager:debug("monitor updated id=<~p>; from ~p to ~p", [Id, Counter, NC]),
-                    mnesia:dirty_write(monitor, N#monitor{counter=NC, timestamp=now()}),
+                    mnesia:dirty_write(monitor, N#monitor{counter=NC, timestamp=os:timestamp()}),
                     NC =< Max;
                 true ->
-                    mnesia:dirty_write(monitor, N#monitor{counter=Counter, timestamp=now()}),
+                    mnesia:dirty_write(monitor, N#monitor{counter=Counter, timestamp=os:timestamp()}),
                     Counter =< Max
             end
     end.
@@ -83,6 +83,6 @@ get_node(Id) ->
 -spec add_node( Id :: string() ) -> #monitor{}.
 
 add_node(Id) ->
-    N = #monitor{id=Id, counter=0, timestamp=now()},
+    N = #monitor{id=Id, counter=0, timestamp=os:timestamp()},
     mnesia:dirty_write(monitor, N),
     N.
