@@ -75,8 +75,16 @@ handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ecomponent ! {ReceivedPacket, State#state.id},
     {noreply, State};
 
-handle_info({send, Packet}, #state{type=node, id=ID, node=Node}=State) ->
+handle_info({send, #xmlel{name='iq'}=Packet}, #state{type=node, id=ID, node=Node}=State) ->
     rpc:cast(Node, ecomponent, send, [Packet, 'from_another_node', undefined, false, ID]),
+    {noreply, State};
+
+handle_info({send, #xmlel{name='message'}=Packet}, #state{type=node, id=ID, node=Node}=State) ->
+    rpc:cast(Node, ecomponent, send_message, [Packet, ID]),
+    {noreply, State};
+
+handle_info({send, #xmlel{name='presence'}=Packet}, #state{type=node, id=ID, node=Node}=State) ->
+    rpc:cast(Node, ecomponent, send_presence, [Packet, ID]),
     {noreply, State};
 
 handle_info({send, Packet}, #state{xmppCom=XmppCom}=State) ->
