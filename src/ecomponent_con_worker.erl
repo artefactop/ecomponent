@@ -162,26 +162,31 @@ code_change(_OldVsn, State, _Extra) ->
 -spec make_connection(JID::string(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
 
 make_connection(JID, Pass, Server, Port) -> 
-    XmppCom = exmpp_component:start(),
-    make_connection(XmppCom, JID, Pass, Server, Port, 20).
+    make_connection(JID, Pass, Server, Port, 20).
     
--spec make_connection(XmppCom::pid(), JID::ecomponent:jid(), Pass::string(), Server::string(), Port::integer(), Tries::integer()) -> {string(), pid()}.    
+-spec make_connection(JID::ecomponent:jid(), Pass::string(), Server::string(), Port::integer(), Tries::integer()) -> {string(), pid()}.    
 
-make_connection(XmppCom, JID, Pass, Server, Port, 0) -> 
-    exmpp_component:stop(XmppCom),
+make_connection(JID, Pass, Server, Port, 0) -> 
     make_connection(JID, Pass, Server, Port);
-make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
+make_connection(JID, Pass, Server, Port, Tries) ->
     lager:info("Connecting: ~p Tries Left~n",[Tries]),
-    exmpp_component:auth(XmppCom, JID, Pass),
-    try exmpp_component:connect(XmppCom, Server, Port) of
+    XmppCom = exmpp_component:start(),
+    try setup_exmpp_component(XmppCom, JID, Pass, Server, Port) of
         R -> 
-            exmpp_component:handshake(XmppCom),
             lager:info("Connected.~n",[]),
             {R, XmppCom}
     catch
-        Exception ->
-            lager:warning("Exception: ~p~n",[Exception]),
+        Class:Exception ->
+            lager:warning("Exception ~p: ~p~n",[Class, Exception]),
+            exmpp_component:stop(XmppCom),
             timer:sleep((20-Tries) * 200),
-            make_connection(XmppCom, JID, Pass, Server, Port, Tries-1)
+            make_connection(JID, Pass, Server, Port, Tries-1)
     end.
+
+-spec setup_exmpp_component(XmppCom::pid(), JID::ecomponent:jid(), Pass::string(), Server::string(), Port::integer()) -> string().
+
+setup_exmpp_component(XmppCom, JID, Pass, Server, Port)->
+    exmpp_component:auth(XmppCom, JID, Pass),
+    exmpp_component:connect(XmppCom, Server, Port),
+    exmpp_component:handshake(XmppCom).
 

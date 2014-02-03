@@ -329,3 +329,4 @@ The example file `app.config` have the following sections:
 
 On processors you can indicate a list of processor by namespace or choose one by default,
 the processor can be a module or an app.
+
