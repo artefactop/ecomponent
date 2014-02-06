@@ -404,7 +404,7 @@ configure() ->
     Facility = proplists:get_value(syslog_facility, Conf, local7),
     Name = proplists:get_value(syslog_name, Conf, "ecomponent"),
     init_syslog(Facility, Name),
-    [ lager:info("~p = ~p", [X,Y]) || {X,Y} <- Conf ],
+    [ lager:info("~p = ~p", [X,Y]) || {X,Y} <- Conf, X /= pass ],
 
     JID = proplists:get_value(jid, Conf),
     WhiteList = proplists:get_value(whitelist, Conf, []),
