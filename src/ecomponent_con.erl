@@ -3,7 +3,7 @@
 
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include("../include/ecomponent.hrl").
+-include("ecomponent.hrl").
 
 -record(state, {
     active  = [] :: [atom()], 
@@ -29,8 +29,12 @@
     down/1
 ]).
 
+-spec is_active(ID::atom()) -> boolean().
+
 is_active(ID) ->
     gen_server:call(?MODULE, {is_active, ID}).
+
+-spec send(Info::exmpp_xml:xmlel()) -> ok.
 
 send(Info) ->
     ToBin = case exmpp_stanza:get_recipient(Info) of 
@@ -42,11 +46,14 @@ send(Info) ->
     ID = exmpp_stanza:get_id(Info),  
     send(Info, timem:remove({ID,ToBin})).
 
+-spec send(Info::exmpp_xml:xmlel(), ID::atom()) -> ok.
+
 send(Info, ID) ->
     case ID =/= undefined andalso is_active(ID) of 
         true ->
             lager:debug("Connecting to (fix) pool: ~p~n", [ID]),
-            ID ! {send, Info};
+            ID ! {send, Info},
+            ok;
         _ ->
             case catch gen_server:call(?MODULE, get_pool) of 
                 {'EXIT', _} ->
@@ -59,7 +66,8 @@ send(Info, ID) ->
                     send(Info);
                 Pool ->
                     lager:debug("Connecting to pool: ~p~n", [Pool]),
-                    Pool ! {send, Info}
+                    Pool ! {send, Info},
+                    ok
             end
     end.
 
