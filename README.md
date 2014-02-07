@@ -157,12 +157,12 @@ If you want to use a connection only for receive stanzas (and reply them) you ca
         {port, 5252},
         {secret, "mypass"},
         {jid, "presence.domain.com"},
-        {type, pasive}
+        {type, passive}
     ]},
 ]}
 ```
 
-The valid values for `type` option can be `active` (by default) and `pasive` for only receive stanzas (and reply them if needed).
+The valid values for `type` option can be `active` (by default) and `passive` for only receive stanzas (and reply them if needed).
 
 ###throttle configuration
 

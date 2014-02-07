@@ -48,7 +48,7 @@ init([ID, JIDdefault, Conf]) ->
     JID = proplists:get_value(jid, Conf, JIDdefault),
     Active = case proplists:get_value(type, Conf, active) of
         active -> true;
-        pasive -> false
+        passive -> false
     end,
     F = case Active of
         true -> active;
