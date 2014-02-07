@@ -2,7 +2,31 @@
 
 % required for eunit to work
 -include_lib("eunit/include/eunit.hrl").
--include("../include/ecomponent_internal.hrl").
+-include("ecomponent_internal.hrl").
+
+-record(mockup, {
+    module :: atom(),
+    function :: atom(),
+    code :: function()
+}).
+
+-record(step, {
+    name = <<"noname">> :: binary(),
+    type = 'send' :: 'send' | 'receive',
+    times = 1 :: pos_integer(),
+    stanza :: exmpp_xml:xmlel()
+}).
+
+-type mockup() :: #mockup{}.
+-type step() :: #step{}.
+
+-record(functional, {
+    mockups = [] :: [mockup()],
+    steps = [] :: [step()],
+    config = [] :: [term()],
+    start = fun() -> ok end :: function(),
+    stop = fun() -> ok end :: function()
+}).
 
 -define(run_exmpp(), begin
     case lists:keyfind(exmpp, 1, application:loaded_applications()) of
@@ -41,7 +65,13 @@ end).
 
 -define(meck_config(Config), begin
     meck:new(application, [passthrough, unstick]),
-    meck:expect(application, get_all_env, 1, Config) 
+    meck:expect(application, get_all_env, 1, Config),
+    meck:expect(application, get_env, fun(_,Key) ->
+        case proplists:get_value(Key, Config) of
+            undefined -> undefined;
+            Value -> {ok, Value}
+        end
+    end)
 end).
 
 -define(meck_component(), begin 
@@ -50,7 +80,10 @@ end).
     meck:expect(exmpp_component, stop, fun(_) -> ok end),
     meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
     meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
-    meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end)
+    meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
+
+    meck:new(ecomponent_con_sup),
+    meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end)
 end).
 
 -define(meck_metrics(), begin 

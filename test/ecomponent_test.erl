@@ -62,8 +62,6 @@ init_per_suite() ->
         {presence_processor, {mod, dummy}},
         {features, [<<"jabber:iq:last">>]}
     ]),
-    meck:new(ecomponent_con_sup),
-    meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end),
     meck:unload(application). 
 
 end_per_suite(_Config) ->
@@ -124,72 +122,6 @@ init(multiconnection_test) ->
         {port, 8899},
         {pass, "secret"}
     ]);
-init(disco_info_test) ->
-    Conf = [
-        {syslog_name, "ecomponent" },
-        {jid, "ecomponent.test" },
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"},
-        {whitelist, [] }, %% throttle whitelist
-        {access_list_get, []},
-        {access_list_set, [
-            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
-        ]},
-        {max_per_period, 15},
-        {period_seconds, 8},
-        {processors, [
-            {default, {mod, dummy}}
-        ]},
-        {message_processor, {mod, dummy}},
-        {presence_processor, {mod, dummy}},
-        {disco_info, true},
-        {info, [
-            {type, <<"jabber:last">>},
-            {name, <<"Last Component">>},
-            {category, <<"text">>}
-        ]},
-        {features, [<<"jabber:iq:last">>]}
-    ],
-    ?meck_config(Conf),
-    meck:new(dummy),
-    {ok, _} = ecomponent:start_link(),
-    {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
-init(disco_muted_test) ->
-    Conf = [
-        {syslog_name, "ecomponent" },
-        {jid, "ecomponent.test" },
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"},
-        {whitelist, [] }, %% throttle whitelist
-        {access_list_get, []},
-        {access_list_set, [
-            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
-        ]},
-        {max_per_period, 15},
-        {period_seconds, 8},
-        {processors, [
-            {default, {mod, dummy}}
-        ]},
-        {message_processor, {mod, dummy}},
-        {presence_processor, {mod, dummy}},
-        {disco_info, false}
-    ],
-    ?meck_config(Conf),
-    meck:new(dummy),
-    {ok, _} = ecomponent:start_link(),
-    {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
 init(save_id_expired_test) ->
     Conf = [
         {syslog_name, "ecomponent" },
@@ -369,73 +301,12 @@ config_test(_Config) ->
         syslogName = "ecomponent"}, State).
 
 disco_muted_test(_Config) ->
-    init(disco_muted_test),
-    DiscoPacket = #received_packet{
-        packet_type=iq, type_attr="get", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='get'
-                    to='ecomponent.test'
-                    id='test_bot'>
-                    <query xmlns='http://jabber.org/protocol/disco#info'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Packet = #received_packet{
-        packet_type=iq, type_attr="get", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='get'
-                    to='alice.localhost'
-                    id='test_bot'>
-                    <ping xmlns='urn:xmpp:ping'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    ecomponent ! {DiscoPacket, default},
-    ecomponent ! {Packet, default},
-    Reply = ?CleanXML(<<"
-        <iq xmlns='jabber:client'
-            type='result'
-            id='test_bot'
-            from='alice.localhost'/>
-    ">>),
-    ?try_catch_xml(Reply, 1000),
-    ?finish().
+    ecomponent_func_test:run("disco_muted_test"),
+    ?_assert(true).
 
 ping_test(_Config) ->
-    init(ping_test),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="get", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='get'
-                    to='alice.localhost'
-                    id='test_bot'>
-                    <ping xmlns='urn:xmpp:ping'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    ecomponent ! {Packet, default},
-    Reply = ?CleanXML(<<"
-        <iq xmlns='jabber:client'
-            type='result'
-            id='test_bot'
-            from='alice.localhost'/>
-    ">>),
-    ?try_catch_xml(Reply, 1000),
-    ?finish().
+    ecomponent_func_test:run("ping_test"),
+    ?_assert(true).
 
 message_test(_Config) ->
     init(message_test),
@@ -479,91 +350,16 @@ presence_test(_Config) ->
     ?finish().
 
 disco_info_test(_Config) ->
-    init(disco_info_test),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="get", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='get'
-                    to='alice.localhost'
-                    id='test_bot'>
-                    <query xmlns='http://jabber.org/protocol/disco#info'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    ecomponent ! {Packet, default},
-    Reply = ?CleanXML(<<"
-        <iq xmlns='jabber:client'
-            type='result'
-            id='test_bot'
-            from='alice.localhost'>
-            <query xmlns='http://jabber.org/protocol/disco#info'>
-                <identity type='jabber:last' 
-                          name='Last Component' 
-                          category='text'/>
-                <feature var='jabber:iq:last'/>
-            </query>
-        </iq>
-    ">>),
-    ?try_catch_xml(Reply, 1000),
-    ?finish().
+    ecomponent_func_test:run("disco_info_test"),
+    ?_assert(true).
 
 disco_test(_Config) ->
-    init(disco_test),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="get", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='get'
-                    to='alice.localhost'
-                    id='test_bot'>
-                    <query xmlns='http://jabber.org/protocol/disco#info'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    ecomponent ! {Packet, default},
-    Reply = ?CleanXML(<<"
-        <iq xmlns='jabber:client'
-            type='result'
-            id='test_bot'
-            from='alice.localhost'>
-            <query xmlns='http://jabber.org/protocol/disco#info'>
-                <feature var='jabber:iq:last'/>
-            </query>
-        </iq>
-    ">>),
-    ?try_catch_xml(Reply, 1000),
-    ?finish().
+    ecomponent_func_test:run("disco_test"),
+    ?_assert(true).
 
 forward_response_module_test(_Config) ->
-    init(forward_response_module_test),
-    Id = <<"forward_response_module_test">>,
-    Packet = #received_packet{
-        packet_type=iq, type_attr="error", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='error'
-                    to='alice.localhost'
-                    id='", Id/binary, "'>
-                    <error xmlns='urn:itself'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    timem:insert(Id, #matching{id="forward_response_module_test", ns='urn:itself', processor=self()}),
-    ecomponent ! {Packet, default},
-    ?try_catch(#response{ns='urn:itself', params=Params} when is_record(Params,params), 1000),
-    ?finish().
+    ecomponent_func_test:run("forward_response_module_test"),
+    ?_assert(true).
 
 forward_ns_in_set_test(_Config) ->
     init(forward_ns_in_set_test),
