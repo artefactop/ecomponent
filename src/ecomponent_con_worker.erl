@@ -45,14 +45,24 @@ init([ID, JIDdefault, Conf]) ->
     Pass = proplists:get_value(pass, Conf),
     Server = proplists:get_value(server, Conf),
     Port = proplists:get_value(port, Conf),
-    JID = proplists:get_value(jid, Conf, JIDdefault), 
+    JID = proplists:get_value(jid, Conf, JIDdefault),
+    Active = case proplists:get_value(type, Conf, active) of
+        active -> true;
+        pasive -> false
+    end,
+    F = case Active of
+        true -> active;
+        false -> passive
+    end,
     case Server of
         undefined ->
             Node = proplists:get_value(node, Conf),
             erlang:monitor_node(Node, true),
+            ecomponent_con:F(ID),
             {ok, #state{type = node, node = Node}};
         _ ->
             {_, XmppCom} = make_connection(JID, Pass, Server, Port),
+            ecomponent_con:F(ID),
             {ok, #state{
                 type = server,
                 xmppCom = XmppCom,

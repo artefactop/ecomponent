@@ -143,6 +143,27 @@ When the server wants to send a message always try to send to the local connecti
 
 As an option you can use different JID for each server configuration. Be careful with this, if you configure your XMPP server with `check_from` option and you send an incorrect `from` tag the connection will be dropped.
 
+If you want to use a connection only for receive stanzas (and reply them) you can configure as follow:
+
+```erlang
+{servers, [
+    {master, [
+        {server, "localhost"},
+        {port, 5252},
+        {secret, "mypass"}
+    ]},
+    {presences, [
+        {server, "localhost"},
+        {port, 5252},
+        {secret, "mypass"},
+        {jid, "presence.domain.com"},
+        {type, pasive}
+    ]},
+]}
+```
+
+The valid values for `type` option can be `active` (by default) and `pasive` for only receive stanzas (and reply them if needed).
+
 ###throttle configuration
 
 If you want to avoid a collapse for your component, you can configure a throttle with the follow params inside the `ecomponent` main tag:

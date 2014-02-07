@@ -6,7 +6,8 @@
 -include("ecomponent.hrl").
 
 -record(state, {
-    active  = [] :: [atom()], 
+    active  = [] :: [atom()],
+    passive = [] :: [atom()],
     down    = [] :: [atom()]
 }).
 
@@ -26,6 +27,7 @@
     send/1,
     send/2,
     active/1,
+    passive/1,
     down/1
 ]).
 
@@ -83,6 +85,9 @@ stop() ->
 active(ID) ->
     ?MODULE ! {active, ID}.
 
+passive(ID) ->
+    ?MODULE ! {passive, ID}.
+
 down(ID) ->
     ?MODULE ! {down, ID}.
 
@@ -91,29 +96,31 @@ down(ID) ->
 %%====================================================================
 
 init([JID, Conf]) ->
-    {ok, #state{active=case proplists:get_value(servers, Conf) of 
+    case proplists:get_value(servers, Conf) of 
         undefined ->
-            spawn(fun() -> ecomponent_con_sup:start_child(default, JID, Conf) end),
-            [default];
+            spawn(fun() -> ecomponent_con_sup:start_child(default, JID, Conf) end);
         SrvInfo ->
-            lists:map(fun({ID, SrvConf}) ->
+            lists:foreach(fun({ID, SrvConf}) ->
                 spawn(fun() -> 
                     ecomponent_con_sup:start_child(ID, JID, SrvConf)
-                end),
-                ID
+                end)
             end, SrvInfo)
-    end}}.
+    end,
+    {ok, #state{}}.
 
 -spec handle_info(Msg::any(), State::#state{}) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
 
-handle_info({active, X}, #state{active=Pools, down=Down}=State) ->
-    {noreply, State#state{active=Pools ++ [X], down=Down -- [X]}};
+handle_info({active, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
+    {noreply, State#state{active=Pools ++ [X], passive=Passive -- [X], down=Down -- [X]}};
 
-handle_info({down, X}, #state{active=Pools, down=Down}=State) ->
-    {noreply, State#state{active=Pools -- [X], down=Down ++ [X]}};
+handle_info({passive, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
+    {noreply, State#state{active=Pools -- [X], passive=Passive ++ [X], down=Down -- [X]}};
+
+handle_info({down, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
+    {noreply, State#state{active=Pools -- [X], passive=Passive -- [X], down=Down ++ [X]}};
 
 handle_info(Record, State) -> 
     lager:info("Unknown Info Request: ~p~n", [Record]),
@@ -142,8 +149,8 @@ handle_call(stop, _From, #state{active=Pools, down=Down}=State) ->
     [ ecomponent_con_worker:stop(Pool) || Pool <- Down ],
     {stop, normal, ok, State};
 
-handle_call({is_active, ID}, _From, #state{active=Pools}=State) ->
-    {reply, lists:member(ID, Pools), State};
+handle_call({is_active, ID}, _From, #state{active=Pools, passive=Passive}=State) ->
+    {reply, lists:member(ID, Pools) orelse lists:member(ID, Passive), State};
 
 handle_call(get_pool, _From, #state{active=[Pool|Pools]}=State) ->
     {reply, Pool, State#state{active=Pools ++ [Pool]}};
