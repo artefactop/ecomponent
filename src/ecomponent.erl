@@ -5,6 +5,7 @@
 %%% Description : ecomponent Service - External Component
 %%%-------------------------------------------------------------------
 -module(ecomponent).
+-compile([warnings_as_errors]).
 
 -behaviour(gen_server).
 
@@ -190,21 +191,14 @@ handle_info(
             {noreply, State}
     end;
 
-handle_info({send, OPacket, NS, App, Reply, ServerID}, #state{jid=JID}=State) ->
+handle_info({send, OPacket, NS, App, Reply, ServerID}, State) ->
     Kind = exmpp_iq:get_kind(OPacket),
-    From = exmpp_stanza:get_sender(OPacket),
-    NewPacket = case From of
-        undefined ->
-            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
-        _ ->
-            OPacket
-    end,
-    Packet = case exmpp_stanza:get_id(NewPacket) of
+    Packet = case exmpp_stanza:get_id(OPacket) of
         undefined ->
             ID = gen_id(),
-            exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
+            exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
         _ -> 
-            NewPacket
+            OPacket
     end,
     case Kind of
         request when Reply =:= false ->
@@ -224,20 +218,13 @@ handle_info({send, OPacket, NS, App, Reply, ServerID}, #state{jid=JID}=State) ->
     end,
     {noreply, State, get_countdown(State)};
 
-handle_info({send_message, OPacket, ServerID}, #state{jid=JID}=State) ->
-    From = exmpp_stanza:get_sender(OPacket),
-    NewPacket = case From of
-        undefined ->
-            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
-        _ ->
-            OPacket
-    end,
-    Packet = case exmpp_stanza:get_id(NewPacket) of
+handle_info({send_message, OPacket, ServerID}, State) ->
+    Packet = case exmpp_stanza:get_id(OPacket) of
         undefined ->
             ID = gen_id(),
-            exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
+            exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
         _ -> 
-            NewPacket
+            OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
     spawn(metrics, notify_throughput_message, [
@@ -252,20 +239,13 @@ handle_info({send_message, OPacket, ServerID}, #state{jid=JID}=State) ->
     {noreply, State, get_countdown(State)};
 
 
-handle_info({send_presence, OPacket, ServerID}, #state{jid=JID}=State) ->
-    From = exmpp_stanza:get_sender(OPacket),
-    NewPacket = case From of
-        undefined ->
-            exmpp_xml:set_attribute(OPacket, <<"from">>, JID);
-        _ ->
-            OPacket
-    end,
-    Packet = case exmpp_stanza:get_id(NewPacket) of
+handle_info({send_presence, OPacket, ServerID}, State) ->
+    Packet = case exmpp_stanza:get_id(OPacket) of
         undefined ->
             ID = gen_id(),
-            exmpp_xml:set_attribute(NewPacket, <<"id">>, ID);
+            exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
         _ -> 
-            NewPacket
+            OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
     spawn(metrics, notify_throughput_presence, [

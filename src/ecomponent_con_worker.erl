@@ -1,6 +1,8 @@
 -module(ecomponent_con_worker).
 -behaviour(gen_server).
 
+-compile([warnings_as_errors]).
+
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
 -include("ecomponent.hrl").
@@ -86,20 +88,48 @@ handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ecomponent ! {ReceivedPacket, State#state.id},
     {noreply, State};
 
-handle_info({send, #xmlel{name='iq'}=Packet}, #state{type=node, id=ID, node=Node}=State) ->
-    rpc:cast(Node, ecomponent, send, [Packet, 'from_another_node', undefined, false, ID]),
+handle_info({send, #xmlel{name='iq'}=Packet}, #state{type=node, jid=JID, id=ID, node=Node}=State) ->
+    From = exmpp_stanza:get_sender(Packet),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(Packet, <<"from">>, JID);
+        _ ->
+            Packet
+    end,
+    rpc:cast(Node, ecomponent, send, [NewPacket, 'from_another_node', undefined, false, ID]),
     {noreply, State};
 
-handle_info({send, #xmlel{name='message'}=Packet}, #state{type=node, id=ID, node=Node}=State) ->
-    rpc:cast(Node, ecomponent, send_message, [Packet, ID]),
+handle_info({send, #xmlel{name='message'}=Packet}, #state{type=node, jid=JID, id=ID, node=Node}=State) ->
+    From = exmpp_stanza:get_sender(Packet),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(Packet, <<"from">>, JID);
+        _ ->
+            Packet
+    end,
+    rpc:cast(Node, ecomponent, send_message, [NewPacket, ID]),
     {noreply, State};
 
-handle_info({send, #xmlel{name='presence'}=Packet}, #state{type=node, id=ID, node=Node}=State) ->
-    rpc:cast(Node, ecomponent, send_presence, [Packet, ID]),
+handle_info({send, #xmlel{name='presence'}=Packet}, #state{type=node, jid=JID, id=ID, node=Node}=State) ->
+    From = exmpp_stanza:get_sender(Packet),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(Packet, <<"from">>, JID);
+        _ ->
+            Packet
+    end,
+    rpc:cast(Node, ecomponent, send_presence, [NewPacket, ID]),
     {noreply, State};
 
-handle_info({send, Packet}, #state{xmppCom=XmppCom}=State) ->
-    exmpp_component:send_packet(XmppCom, Packet),
+handle_info({send, Packet}, #state{xmppCom=XmppCom, jid=JID}=State) ->
+    From = exmpp_stanza:get_sender(Packet),
+    NewPacket = case From of
+        undefined ->
+            exmpp_xml:set_attribute(Packet, <<"from">>, JID);
+        _ ->
+            Packet
+    end,
+    exmpp_component:send_packet(XmppCom, NewPacket),
     {noreply, State};
 
 handle_info({down, Node}, #state{node=Node}=State) ->
