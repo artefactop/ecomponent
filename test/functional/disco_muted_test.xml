@@ -1,0 +1,51 @@
+<functional>
+
+    <config>
+        <syslog name="ecomponent"/>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <mockups>
+        <mockup module="dummy" function="process_message">
+            <code><![CDATA[
+                (Message) -> ok
+            ]]></code>
+        </mockup>
+    </mockups>
+
+    <steps>
+        <step name="send create" type="send">
+            <iq xmlns='jabber:client'
+                type='get'
+                to='ecomponent.test'
+                id='test_bot1'
+                from='bob@localhost/pc'>
+                <query xmlns='http://jabber.org/protocol/disco#info'/>
+            </iq>
+        </step>
+
+        <step name="send ping" type="send">
+            <iq xmlns='jabber:client'
+                type='get'
+                to='ecomponent.test'
+                id='test_bot2'>
+                <ping xmlns='urn:xmpp:ping'/>
+            </iq>
+        </step>
+
+        <step name="receive creation messages" type="receive">
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot2'
+                from='ecomponent.test'/>
+        </step>
+    </steps>
+
+</functional>
