@@ -41,10 +41,11 @@ stop(ID) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([ID, JID, Conf]) ->
+init([ID, JIDdefault, Conf]) ->
     Pass = proplists:get_value(pass, Conf),
     Server = proplists:get_value(server, Conf),
     Port = proplists:get_value(port, Conf),
+    JID = proplists:get_value(jid, Conf, JIDdefault), 
     case Server of
         undefined ->
             Node = proplists:get_value(node, Conf),

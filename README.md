@@ -141,6 +141,8 @@ If you have three servers and you want to connect each one locally, but share th
 
 When the server wants to send a message always try to send to the local connection but, if this is down, the message will be tried by the connections in another nodes in the cluster.
 
+As an option you can use different JID for each server configuration. Be careful with this, if you configure your XMPP server with `check_from` option and you send an incorrect `from` tag the connection will be dropped.
+
 ###throttle configuration
 
 If you want to avoid a collapse for your component, you can configure a throttle with the follow params inside the `ecomponent` main tag:
