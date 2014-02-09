@@ -159,10 +159,6 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza}=Step|Steps], _PrevPa
 run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps], _PrevPacket) ->
     ?debugFmt("STEP (receive): ~s~n", [Name]),
     ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
     receive
         NewStanza -> 
             compare_stanza(Stanza, NewStanza)

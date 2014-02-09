@@ -75,17 +75,21 @@ end).
     end)
 end).
 
--define(meck_component(), begin 
+-define(meck_component(), (fun() ->
     meck:new(exmpp_component),
     meck:expect(exmpp_component, start, fun() -> self() end),
     meck:expect(exmpp_component, stop, fun(_) -> ok end),
     meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
     meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
     meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
+    Pid = self(),
+    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+        Pid ! P
+    end),
 
     meck:new(ecomponent_con_sup),
     meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end)
-end).
+end)()).
 
 -define(meck_metrics(), begin 
     meck:new(metrics),
