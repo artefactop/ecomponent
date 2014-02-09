@@ -28,13 +28,12 @@ check(Tests, Timeout) when is_list(Tests) ->
 check(Test, Timeout) ->
     check([Test], Timeout).
 
-run(Test) ->
-    ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
+parse_file(Test) ->
     File = "../test/functional/" ++ Test ++ ".xml",
     {ok,XML} = file:read_file(File),
     [Parsed|_] = exmpp_xmlstream:parse_element(XML),
     Cleaned = exmpp_xml:remove_whitespaces_deeply(Parsed),
-    Functional = lists:foldl(fun(Xmlel, #functional{
+    lists:foldl(fun(Xmlel, #functional{
             steps=Steps, mockups=Mockups}=F) ->
         case parse(Xmlel) of
             [#step{}|_]=NewSteps -> 
@@ -49,7 +48,11 @@ run(Test) ->
                 F#functional{config=Config};
             [] -> F
         end
-    end, #functional{}, Cleaned#xmlel.children),
+    end, #functional{}, Cleaned#xmlel.children).
+
+run(Test) ->
+    ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
+    Functional = parse_file(Test),
     %% TODO: add server options
     AtomicServerConf = [
         {server, "localhost" },
@@ -108,10 +111,30 @@ unmock() ->
     meck:unload(),
     ok.
 
-run_steps([]) ->
+run_steps(Steps) ->
+    run_steps(Steps, undefined).
+
+run_steps([],_) ->
     ok;
 
-run_steps([#step{name=Name,times=T,type=send,stanza=Stanza}=Step|Steps]) ->
+run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket) ->
+    ?debugFmt("STEP (code): ~s~n", [Name]),
+    Fun(PrevPacket, self()),
+    if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
+        true -> run_steps(Steps, PrevPacket)
+    end;
+
+run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket) ->
+    ?debugFmt("STEP (store): ~s~n", [Name]),
+    ?debugFmt("Store: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+    %% TODO: check stanza for replace vars {{whatever}}
+    if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
+        true -> run_steps(Steps, Stanza)
+    end;
+
+run_steps([#step{name=Name,times=T,type=send,stanza=Stanza}=Step|Steps], _PrevPacket) ->
     ?debugFmt("STEP (send): ~s~n", [Name]),
     ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     #xmlel{name=PacketType} = Stanza,
@@ -129,11 +152,11 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza}=Step|Steps]) ->
     ?assertNotEqual(undefined, whereis(ecomponent)),
     ecomponent ! {Packet, default},
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps]);
-        true -> run_steps(Steps)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Packet);
+        true -> run_steps(Steps, Packet)
     end;
 
-run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps]) ->
+run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps], _PrevPacket) ->
     ?debugFmt("STEP (receive): ~s~n", [Name]),
     ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     Pid = self(),
@@ -143,13 +166,13 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps]) ->
     receive
         NewStanza -> 
             compare_stanza(Stanza, NewStanza)
-    after 1000 ->
+    after Step#step.timeout ->
         ?debugFmt("TIMEOUT!!! we need to receive ~p~n", [Stanza]),
         throw(enostanza)
     end,
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps]);
-        true -> run_steps(Steps)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
+        true -> run_steps(Steps, Stanza)
     end.
 
 compare_stanza(#xmlcdata{cdata=Data}, #xmlcdata{cdata=Data}) -> ok;
@@ -212,7 +235,7 @@ parse_disco_info(#xmlel{name='disco-info',children=Data}=Config) ->
             Name = exmpp_xml:get_attribute(Identity, <<"name">>, <<"noname">>),
             I = {info, [{type, Type}, {name, Name}, {category, Category}]},
             [Features,I]
-    end, [{features,[]},[{info, {name, <<"noname">>}}]], Data).
+    end, [{features,[]},[]], Data).
 
 parse(#xmlel{name='start-code'}=Start) ->
     {'start-code', bin_to_code(general, exmpp_xml:get_cdata(Start))};
@@ -233,7 +256,9 @@ parse(#xmlel{name=config, children=Configs}) ->
         (#xmlel{name='processors',children=Processors}) ->
             lists:flatten(parse_processors(Processors));
         (#xmlel{name='disco-info'}=Config) ->
-            parse_disco_info(Config)
+            parse_disco_info(Config);
+        (#xmlel{name='request-timeout'}=Config) ->
+            [{request_timeout, bin_to_integer(exmpp_xml:get_attribute(Config, <<"value">>, <<"30">>))}]
     end, Configs);
 
 parse(#xmlel{name=mockups, children=Mockups}) ->
@@ -245,19 +270,33 @@ parse(#xmlel{name=mockups, children=Mockups}) ->
     end, Mockups);
 
 parse(#xmlel{name=steps, children=Steps}) ->
-    lists:map(fun(#xmlel{children=[Child]}=Step) ->
-        #step{
-            name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
-            type=bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
-            times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
-            stanza=Child}
+    lists:map(fun
+        (#xmlel{children=[#xmlel{}=Child]}=Step) ->
+            Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
+            #step{
+                name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
+                type=Type,
+                times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
+                timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
+                stanza=Child};
+        (#xmlel{children=[#xmlcdata{}|_]}=Step) ->
+            Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
+            #step{
+                name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
+                type=Type,
+                times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
+                stanza=bin_to_code(steps, exmpp_xml:get_cdata(Step))}
     end, Steps).
 
 bin_to_code(general, B) ->
     bin_to_code(<<"fun() -> ", B/binary, " end.">>);
 
+bin_to_code(steps, B) ->
+    bin_to_code(<<"fun(Packet, PID) -> ", B/binary, " end.">>);
+
 bin_to_code(mockup, B) ->
-    bin_to_code(<<"fun", B/binary, " end.">>).
+    GenFun = bin_to_code(<<"fun(PID) -> fun", B/binary, " end end.">>),
+    GenFun(self()).
 
 get_defs(Module) ->
     case code:is_loaded(Module) of
@@ -286,4 +325,6 @@ bin_to_integer(B) ->
     list_to_integer(binary_to_list(B)).
 
 bin_to_type(<<"receive">>) -> 'receive';
+bin_to_type(<<"code">>) -> 'code';
+bin_to_type(<<"store">>) -> 'store';
 bin_to_type(_) -> 'send'.

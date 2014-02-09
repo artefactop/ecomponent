@@ -14,6 +14,7 @@
     name = <<"noname">> :: binary(),
     type = 'send' :: 'send' | 'receive',
     times = 1 :: pos_integer(),
+    timeout = 1000 :: pos_integer(),
     stanza :: exmpp_xml:xmlel()
 }).
 
