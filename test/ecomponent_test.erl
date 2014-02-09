@@ -243,7 +243,7 @@ config_test(_Config) ->
     init(config_test),
     meck:new(dummy),
     meck:expect(dummy, tables, 0, [{dummy, ram_copies, record_info(fields, dummy)}]), 
-    {ok, State} = ecomponent:init([]), 
+    {ok, State, _Timeout} = ecomponent:init([]), 
     meck:unload(dummy), 
     mnesia:table_info(dummy, all), 
     lager:info("~p~n", [State]),
@@ -257,7 +257,6 @@ config_test(_Config) ->
         message_processor = {mod, dummy},
         presence_processor = {mod, dummy},
         maxTries = 3,
-        resendPeriod = 100,
         requestTimeout = 10,
         accessListSet = [
             {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},

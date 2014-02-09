@@ -22,7 +22,6 @@
 -define(MAX_PER_PERIOD, 10).
 -define(PERIOD_SECONDS, 6).
 -define(MAX_TRIES, 3).
--define(RESEND_PERIOD, 100).
 -define(REQUEST_TIMEOUT, 10).
 -define(SYSLOG_FACILITY, local7).
 -define(SYSLOG_NAME, "ecomponent").
@@ -36,8 +35,8 @@
     message_processor :: message_processor(),
     presence_processor :: presence_processor(),
     maxTries = ?MAX_TRIES :: integer(),
-    resendPeriod = ?RESEND_PERIOD :: integer(),
     requestTimeout = ?REQUEST_TIMEOUT :: integer(),
+    resend = true :: boolean(),
     accessListSet = [] :: accesslist(),
     accessListGet = [] :: accesslist(),
     syslogFacility = ?SYSLOG_FACILITY :: atom(),
