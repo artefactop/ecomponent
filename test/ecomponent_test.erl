@@ -122,36 +122,6 @@ init(multiconnection_test) ->
         {port, 8899},
         {pass, "secret"}
     ]);
-init(save_id_expired_test) ->
-    Conf = [
-        {syslog_name, "ecomponent" },
-        {jid, "ecomponent.test" },
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"},
-        {whitelist, [] }, %% throttle whitelist
-        {access_list_get, []},
-        {access_list_set, [
-            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
-        ]},
-        {max_per_period, 15},
-        {period_seconds, 8},
-        {processors, [
-            {default, {mod, dummy}}
-        ]},
-        {message_processor, {mod, dummy}},
-        {presence_processor, {mod, dummy}},
-        {request_timeout, 2}
-    ],
-    ?meck_config(Conf),
-    meck:new(dummy),
-    {ok, _} = ecomponent:start_link(),
-    {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
 init(sync_send_test) ->
     Conf = [
         {syslog_name, "ecomponent" },
@@ -309,45 +279,12 @@ ping_test(_Config) ->
     ?_assert(true).
 
 message_test(_Config) ->
-    init(message_test),
-    Packet = #received_packet{
-        packet_type=message, type_attr="chat", raw_packet=
-            ?Parse(<<"
-                <message xmlns='jabber:client' 
-                         type='chat' 
-                         to='alice.localhost'
-                         id='test_bot'>
-                    <body>ping</body>
-                </message>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:expect(dummy, process_message, fun(Message) ->
-        Pid ! Message
-    end),
-    ecomponent ! {Packet, default},
-    ?try_catch(#message{type="chat", xmlel=_Xmlel}, 1000),
-    ?finish().
+    ecomponent_func_test:run("message_test"),
+    ?_assert(true).
 
 presence_test(_Config) ->
-    init(presence_test),
-    Packet = #received_packet{
-        packet_type=presence, type_attr=undefined, raw_packet=
-            ?Parse(<<"
-                <presence xmlns='jabber:client' 
-                          to='alice.localhost' 
-                          id='test_bot'/>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:expect(dummy, process_presence, fun(Presence) ->
-        Pid ! Presence
-    end),
-    ecomponent ! {Packet, default},
-    ?try_catch(#presence{xmlel=_Xmlel}, 1000),
-    ?finish().
+    ecomponent_func_test:run("presence_test"),
+    ?_assert(true).
 
 disco_info_test(_Config) ->
     ecomponent_func_test:run("disco_info_test"),
@@ -362,68 +299,12 @@ forward_response_module_test(_Config) ->
     ?_assert(true).
 
 forward_ns_in_set_test(_Config) ->
-    init(forward_ns_in_set_test),
-    Payload = ?Parse(<<"
-        <data xmlns='urn:itself'/>
-    ">>),
-    IQ = ?Parse(<<"
-        <iq xmlns='jabber:client'
-            type='set'
-            to='alice.localhost'
-            id='test_fwns_set'>
-            <data xmlns='urn:itself'/>
-        </iq>
-    ">>),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="set", raw_packet=IQ,
-        from={"bob", "localhost", undefined}
-    },
-    Pid = self(),
-    meck:expect(dummy, process_iq, fun(Params) ->
-        %?debugFmt("Received params: ~p~n", [Params]),
-        Pid ! Params
-    end),
-    ecomponent ! {Packet, default},
-    ?try_catch(#params{
-        type="set", from={"bob","localhost",undefined},
-        to={undefined,<<"alice.localhost">>,undefined},
-        ns='urn:itself',
-        payload = Payload,
-        iq = IQ,
-        features=[<<"jabber:iq:last">>],
-        info=[]
-    }, 1000),
-    ?finish().
+    ecomponent_func_test:run("forward_ns_in_set_test"),
+    ?_assert(true).
 
 save_id_expired_test(_Config) ->
-    init(save_id_expired_test),
-    Id = ecomponent:gen_id(),
-    Packet = ?Parse(<<"
-        <iq xmlns='jabber:client'
-            type='set'
-            from='bob@localhost/res'
-            to='alice.localhost'
-            id='", Id/binary, "'>
-            <data xmlns='urn:itself'/>
-        </iq>
-    ">>),
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    ecomponent:save_id(Id, 'urn:itself', Packet, dummy),
-    ecomponent ! getup, %% for init counter
-    Reply = ?CleanXML(<<"
-        <iq xmlns='jabber:client'
-            type='set'
-            from='bob@localhost/res'
-            to='alice.localhost'
-            id='", Id/binary, "'>
-            <data xmlns='urn:itself'/>
-        </iq>
-    ">>),
-    ?try_catch_xml(Reply, 3000),
-    ?finish().
+    ecomponent_func_test:run("save_id_expired_test"),
+    ?_assert(true).
 
 sync_send_test(_Config) ->
     init(sync_send_test),

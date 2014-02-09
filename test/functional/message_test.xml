@@ -12,15 +12,17 @@
         <disco-info active="false"/>
     </config>
 
-    <start-code><![CDATA[
-        Id = <<"forward_response_module_test">>,
-        Id_l = binary_to_list(Id),
-        timem:insert(Id, #matching{id=Id_l, ns='urn:itself', processor=self()})
-    ]]></start-code>
+    <mockups>
+        <mockup module="dummy" function="process_message">
+            <code><![CDATA[
+                (Message) -> PID ! Message
+            ]]></code>
+        </mockup>
+    </mockups>
 
     <stop-code><![CDATA[
         receive
-            #response{ns='urn:itself', params=Params} when is_record(Params,params) ->
+            #message{type="chat", xmlel=_Xmlel} ->
                 ok;
             Any -> throw(Any)
         after 1000 ->
@@ -29,13 +31,13 @@
     ]]></stop-code>
 
     <steps>
-        <step name="send an error" type="send">
-            <iq xmlns='jabber:client'
-                type='error'
-                to='alice.localhost'
-                id='forward_response_module_test'>
-                <error xmlns='urn:itself'/>
-            </iq>
+        <step name="send message to ecomponent" type="send">
+            <message xmlns='jabber:client' 
+                     type='chat' 
+                     to='alice.localhost'
+                     id='test_bot'>
+                <body>ping</body>
+            </message>
         </step>
     </steps>
 

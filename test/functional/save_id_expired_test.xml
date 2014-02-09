@@ -1,0 +1,42 @@
+<functional>
+
+    <config>
+        <syslog name="ecomponent"/>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="false"/>
+        <request-timeout value="2"/>
+    </config>
+
+    <steps>
+        <step name="request arrived" type="store">
+            <iq xmlns='jabber:client'
+                type='set'
+                from='bob@localhost/res'
+                to='alice.localhost'
+                id='test_bot_save_id_generated_test'>
+                <data xmlns='urn:itself'/>
+            </iq>
+        </step>
+        <step name="update save_id" type="code"><![CDATA[
+            Id = <<"test_bot_save_id_generated_test">>,
+            ecomponent:save_id(Id, 'urn:itself', Packet, dummy),
+            ecomponent ! getup
+        ]]></step>
+        <step name="receive" type="receive" timeout="3000">
+            <iq xmlns='jabber:client'
+                type='set'
+                from='bob@localhost/res'
+                to='alice.localhost'
+                id='test_bot_save_id_generated_test'>
+                <data xmlns='urn:itself'/>
+            </iq>
+        </step>
+    </steps>
+
+</functional>

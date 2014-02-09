@@ -12,14 +12,6 @@
         <disco-info active="false"/>
     </config>
 
-    <mockups>
-        <mockup module="dummy" function="process_message">
-            <code><![CDATA[
-                (Message) -> ok
-            ]]></code>
-        </mockup>
-    </mockups>
-
     <steps>
         <step name="send create" type="send">
             <iq xmlns='jabber:client'
