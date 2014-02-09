@@ -86,6 +86,12 @@ process_iq(#params{}=Params) ->
 
 The use of `app` instead of `mod` is only recommended when a state should be kept between requests. Be careful with this, because the use of `app` could generate a bottleneck.
 
+###resend IQs
+
+When ecomponent send an IQ to the server tracks for a reply (else you use `false` in `reply` param for `send` function). If the reply is not received in a configured time, ecomponent resend the reply again.
+
+This resend is made by the `timem` module and the configuration param is `request_timeout`, in seconds. The default value for retries is 10 (seconds).
+
 ###server configuration
 
 You can configure only one server to connect through XMPP, several connections (each one with its own id) or shared connections (connections through another node in the cluster).
