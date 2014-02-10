@@ -28,7 +28,7 @@
             ecomponent:save_id(Id, 'urn:itself', Packet, dummy),
             ecomponent ! getup
         ]]></step>
-        <step name="receive" type="receive" timeout="3000">
+        <step name="receive" type="receive" timeout="5000">
             <iq xmlns='jabber:client'
                 type='set'
                 from='bob@localhost/res'

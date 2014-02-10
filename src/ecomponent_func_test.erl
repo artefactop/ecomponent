@@ -94,7 +94,13 @@ run(Test) ->
         meck:unload(application),
         unmock(Functional#functional.mockups)
     end),
-    receive {'DOWN',ProcessRef,process,ProcessPID,normal} -> ok end,
+    receive 
+        {'DOWN',ProcessRef,process,ProcessPID,normal} -> ok;
+        {'DOWN',ProcessRef,process,ProcessPID,_} -> throw(eprocdie)
+    after 8000 ->
+        ?debugFmt("test process frozen?!?~n", []),
+        throw(enoresponse)
+    end,
     ok.
 
 mock(Mockups) when is_list(Mockups) ->

@@ -2,7 +2,7 @@
 
 -compile(export_all).
 
--include("../include/ecomponent_test.hrl").
+-include("ecomponent_test.hrl").
 
 setup_test_() ->
     {setup, 
@@ -339,6 +339,7 @@ multiconnection_test(_Config) ->
             Pid ! ID,
             server_two
     end),
+    meck:expect(timem, remove_expired, 1, []),
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),

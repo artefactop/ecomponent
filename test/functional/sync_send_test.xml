@@ -28,7 +28,7 @@
                 PID ! ecomponent:sync_send(Packet, NS) 
             end)
         ]]></step>
-        <step name="receive the result from sync_send()" type="receive">
+        <step name="receive the request from sync_send()" type="receive">
             <iq xmlns='jabber:client'
                 type='get'
                 from='alice.localhost'
