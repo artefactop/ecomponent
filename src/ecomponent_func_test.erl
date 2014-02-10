@@ -13,6 +13,8 @@ check(Test) ->
 
 check(Tests, Timeout) when is_list(Tests) ->
     {timeout, Timeout, ?_assert(begin
+        net_kernel:start([ecomponent@localhost, shortnames]),
+        timer:sleep(1000),
         mnesia:start(),
         ?meck_lager(),
         ?meck_syslog(),
@@ -52,38 +54,48 @@ parse_file(Test) ->
 
 run(Test) ->
     ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
-    Functional = parse_file(Test),
-    %% TODO: add server options
-    AtomicServerConf = [
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"}
-    ],
-    ServerConfig = [
-        {servers, [
-            {default, AtomicServerConf}
-        ]}
-    ],
-    %% TODO: add mnesia clustering options
-    Config = Functional#functional.config ++ ServerConfig ++ [{mnesia_nodes, [node()]}],
-    ?debugFmt("config = ~p~n", [Config]),
-    ?meck_config(Config),
-    mock(Functional#functional.mockups),
+    MainPID = self(),
+    {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
+        Functional = parse_file(Test),
+        %% TODO: add server options
+        AtomicServerConf = [
+            {server, "localhost" },
+            {port, 8899},
+            {pass, "secret"}
+        ],
+        ServerConfig = [
+            {servers, [
+                {default, AtomicServerConf}
+            ]}
+        ],
+        %% TODO: add mnesia clustering options
+        Config = Functional#functional.config ++ ServerConfig ++ [{mnesia_nodes, [node()]}],
+        %% TODO: launch slaves depend on cluster configuration
+        ?debugFmt("config = ~p~n", [Config]),
+        ?meck_config(Config),
+        PID = self(),
+        meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+            ?debugFmt("Send info ~p to ~p~n", [PID, P]),
+            PID ! P
+        end),
+        mock(Functional#functional.mockups),
 
-    {ok, _} = ecomponent:start_link(),
-    JID = proplists:get_value(jid, Config, "ecomponent.bot"),
-    %% TODO: depends on config, launch one or more workers
-    {ok, _} = ecomponent_con_worker:start_link(default, JID, AtomicServerConf),
+        {ok, _} = ecomponent:start_link(),
+        JID = proplists:get_value(jid, Config, "ecomponent.bot"),
+        %% TODO: depends on config, launch one or more workers
+        {ok, _} = ecomponent_con_worker:start_link(default, JID, AtomicServerConf),
 
-    (Functional#functional.start)(),
+        (Functional#functional.start)(),
 
-    run_steps(Functional#functional.steps),
+        run_steps(Functional#functional.steps),
 
-    (Functional#functional.stop)(),
+        (Functional#functional.stop)(),
 
-    ecomponent:stop(),
-    meck:unload(application),
-    unmock(Functional#functional.mockups),
+        ecomponent:stop(),
+        meck:unload(application),
+        unmock(Functional#functional.mockups)
+    end),
+    receive {'DOWN',ProcessRef,process,ProcessPID,normal} -> ok end,
     ok.
 
 mock(Mockups) when is_list(Mockups) ->

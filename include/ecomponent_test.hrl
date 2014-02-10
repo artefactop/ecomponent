@@ -82,10 +82,6 @@ end).
     meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
     meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
     meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
 
     meck:new(ecomponent_con_sup),
     meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end)
