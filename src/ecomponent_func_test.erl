@@ -54,7 +54,6 @@ parse_file(Test) ->
 
 run(Test) ->
     ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
-    MainPID = self(),
     {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
         Functional = parse_file(Test),
         %% TODO: add server options
