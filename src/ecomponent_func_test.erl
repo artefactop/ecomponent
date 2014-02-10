@@ -192,8 +192,8 @@ compare_stanza(
             ?debugFmt("expected: ~p~n", [B]),
             ?assertEqual(A,B)
     end, lists:zip(AttrsA, AttrsB)),
-    ChildrenA = lists:keysort(4, Children1),
-    ChildrenB = lists:keysort(4, Children2),
+    ChildrenA = lists:sort([{A,undefined,undefined,B,C,D} || {A,_,_,B,C,D} <- Children1]),
+    ChildrenB = lists:sort([{A,undefined,undefined,B,C,D} || {A,_,_,B,C,D} <- Children2]),
     case length(ChildrenA) == length(ChildrenB) of
         true -> ok;
         false -> throw({children_length, [{children1, ChildrenA}, {children2, ChildrenB}]})
