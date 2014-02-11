@@ -24,6 +24,7 @@ check(Tests, Timeout) when is_list(Tests) ->
         [ run(Test) || Test <- Tests ],
         mnesia:stop(),
         unmock(),
+        net_kernel:stop(),
         true
     end)};
 
