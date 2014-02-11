@@ -74,7 +74,6 @@ run(Test) ->
         ?meck_config(Config),
         PID = self(),
         meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-            ?debugFmt("Send info ~p to ~p~n", [PID, P]),
             PID ! P
         end),
         mock(Functional#functional.mockups),
@@ -96,7 +95,9 @@ run(Test) ->
     end),
     receive 
         {'DOWN',ProcessRef,process,ProcessPID,normal} -> ok;
-        {'DOWN',ProcessRef,process,ProcessPID,_} -> throw(eprocdie)
+        {'DOWN',ProcessRef,process,ProcessPID,Reason} -> 
+            ?debugFmt("DIE: ~p~n", [Reason]),
+            throw(eprocdie)
     after 8000 ->
         ?debugFmt("test process frozen?!?~n", []),
         throw(enoresponse)
