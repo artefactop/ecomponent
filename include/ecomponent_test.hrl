@@ -38,31 +38,51 @@
     end
 end).
 
--define(meck_lager(), begin
+-define(meck_lager(Verbose), begin
     meck:new(lager),
     meck:expect(lager, dispatch_log, fun(_Severity, _Metadata, _Format, _Args, _Size) ->
-        %?debugFmt(_Format, _Args),
-        ok
+        if 
+            Verbose ->
+                ?debugFmt(_Format, _Args), 
+                ok;
+            true -> ok
+        end
     end),
     meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, _Pid, _Traces, _Format, _Args, _TruncSize) ->
-        %?debugFmt(_Format, _Args),
-        ok
+        if
+            Verbose ->
+                ?debugFmt(_Format, _Args),
+                ok;
+            true -> ok
+        end
     end)
 end).
 
--define(meck_syslog(), begin
+-define(meck_lager(), ?meck_lager(false)).
+
+-define(meck_syslog(Verbose), begin
     meck:new(syslog),
     meck:expect(syslog, open, fun(_Name, _Opts, _Facility) -> ok end),
     meck:expect(syslog, log, fun(_Level, _Message) ->
-        %?debugFmt("~p: ~s~n", [_Level,_Message]),
-        ok
+        if
+            Verbose ->
+                ?debugFmt("~p: ~s~n", [_Level,_Message]),
+                ok;
+            true -> ok
+        end
     end),
     meck:new(ecomponent, [passthrough]),
     meck:expect(ecomponent, syslog, fun(_A,_B) -> 
-        %?debugFmt("~p: ~s~n", [_A,_B]),
-        ok
+        if
+            Verbose ->
+                ?debugFmt("~p: ~s~n", [_A,_B]),
+                ok;
+            true -> ok
+        end
     end)
 end).
+
+-define(meck_syslog(), ?meck_syslog(false)).
 
 -define(meck_config(Config), begin
     meck:new(application, [passthrough, unstick]),

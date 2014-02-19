@@ -3,19 +3,23 @@
 -export([
     check/1,
     check/2,
+    check/3,
     run/1
 ]).
 
 -include("ecomponent_test.hrl").
 
 check(Test) ->
-    check(Test, 120).
+    check(Test, 120, false).
 
-check(Tests, Timeout) when is_list(Tests) ->
+check(Test, Timeout) ->
+    check(Test, Timeout, false).
+
+check(Tests, Timeout, Verbose) when is_list(Tests) ->
     {timeout, Timeout, ?_assert(begin
         mnesia:start(),
-        ?meck_lager(),
-        ?meck_syslog(),
+        ?meck_lager(Verbose),
+        ?meck_syslog(Verbose),
         ?meck_component(),
         ?meck_metrics(),
         ?run_exmpp(),
@@ -25,8 +29,8 @@ check(Tests, Timeout) when is_list(Tests) ->
         true
     end)};
 
-check(Test, Timeout) ->
-    check([Test], Timeout).
+check(Test, Timeout, Verbose) ->
+    check([Test], Timeout, Verbose).
 
 parse_file(Test) ->
     File = "../test/functional/" ++ Test ++ ".xml",
