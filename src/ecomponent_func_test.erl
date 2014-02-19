@@ -256,6 +256,26 @@ parse_disco_info(#xmlel{name='disco-info',children=Data}=Config) ->
             [Features,I]
     end, [{features,[]},[]], Data).
 
+parse_throttle(#xmlel{name='throttle'}=Config) ->
+    case exmpp_xml:get_attribute(Config, <<"max-per-period">>, undefined) of
+        undefined -> [];
+        MaxPerPeriod -> [{max_per_period, bin_to_integer(MaxPerPeriod)}]
+    end ++
+    case exmpp_xml:get_attribute(Config, <<"period-seconds">>, undefined) of
+        undefined -> [];
+        PeriodSeconds -> [{period_seconds, bin_to_integer(PeriodSeconds)}]
+    end ++
+    case exmpp_xml:get_path(Config, [{element, 'whitelist'}]) of
+        #xmlel{children=Items} -> 
+            [{whitelist, lists:map(fun(#xmlel{name='item'}=X) ->
+                exmpp_xml:get_attribute(X, <<"jid">>, <<>>)
+            end, Items)}];
+        _ -> 
+            []
+    end ++
+    [{throttle, binary_to_atom(
+        exmpp_xml:get_attribute(Config, <<"active">>, <<"true">>), utf8)}].
+
 parse(#xmlel{name='start-code'}=Start) ->
     {'start-code', bin_to_code(general, exmpp_xml:get_cdata(Start))};
 
@@ -270,8 +290,7 @@ parse(#xmlel{name=config, children=Configs}) ->
         (#xmlel{name='jid'}=Config) ->
             [{jid, binary_to_list(exmpp_xml:get_cdata(Config))}];
         (#xmlel{name='throttle'}=Config) ->
-            [{throttle, 
-                binary_to_atom(exmpp_xml:get_attribute(Config, <<"active">>, <<"true">>), utf8)}];
+            parse_throttle(Config);
         (#xmlel{name='processors',children=Processors}) ->
             lists:flatten(parse_processors(Processors));
         (#xmlel{name='disco-info'}=Config) ->

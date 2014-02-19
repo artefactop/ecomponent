@@ -3,7 +3,12 @@
     <config>
         <syslog name="ecomponent"/>
         <jid>ecomponent.test</jid>
-        <throttle active="false"/>
+        <throttle active="false" max-per-period="10" period-seconds="5">
+            <whitelist>
+                <item jid="localhost"/>
+                <item jid="alice.localhost"/>
+            </whitelist>
+        </throttle>
         <processors>
             <iq xmlns="default" type="mod" data="dummy"/>
             <message type="mod" data="dummy"/>
