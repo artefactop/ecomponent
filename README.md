@@ -16,4 +16,3 @@ For more information:
 
 * [Configuration](doc/configuration.md)
 * [Testing](doc/testing.md)
-

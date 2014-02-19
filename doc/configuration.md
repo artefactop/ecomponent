@@ -78,6 +78,12 @@ When ecomponent send an IQ to the server tracks for a reply (else you use `false
 
 This resend is made by the `timem` module and the configuration param is `request_timeout`, in seconds. The default value for retries is 10 (seconds).
 
+The configuration params available:
+
+- `resend` (boolean) - enable/disable IQ resend.
+- `request_timeout` (integer, seconds) - time between resends for each IQ stanza.
+- `max_tries` (integer) - the number of tries for send the IQ stanza.
+
 ###server configuration
 
 You can configure only one server to connect through XMPP, several connections (each one with its own id) or shared connections (connections through another node in the cluster).
@@ -344,4 +350,3 @@ The example file `app.config` have the following sections:
 
 On processors you can indicate a list of processor by namespace or choose one by default,
 the processor can be a module or an app.
-

@@ -2,7 +2,7 @@
 
 -compile(export_all).
 
--include("../include/ecomponent_test.hrl").
+-include("ecomponent_test.hrl").
 
 setup_test_() ->
     {setup, 
@@ -122,26 +122,6 @@ init(multiconnection_test) ->
         {port, 8899},
         {pass, "secret"}
     ]);
-init(sync_send_test) ->
-    Conf = [
-        {syslog_name, "ecomponent" },
-        {jid, "ecomponent.test" },
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"},
-        {whitelist, [] }, %% throttle whitelist
-        {access_list_get, []},
-        {access_list_set, []},
-        {max_per_period, 15},
-        {period_seconds, 8},
-        {processors, [
-            {default, {mod, dummy}}
-        ]}
-    ],
-    ?meck_config(Conf),
-    meck:new(dummy),
-    {ok, _} = ecomponent:start_link(),
-    {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf);
 init(config_test) ->
     ?meck_config([
         {syslog_name, "ecomponent" },
@@ -243,7 +223,7 @@ config_test(_Config) ->
     init(config_test),
     meck:new(dummy),
     meck:expect(dummy, tables, 0, [{dummy, ram_copies, record_info(fields, dummy)}]), 
-    {ok, State} = ecomponent:init([]), 
+    {ok, State, _Timeout} = ecomponent:init([]), 
     meck:unload(dummy), 
     mnesia:table_info(dummy, all), 
     lager:info("~p~n", [State]),
@@ -257,7 +237,6 @@ config_test(_Config) ->
         message_processor = {mod, dummy},
         presence_processor = {mod, dummy},
         maxTries = 3,
-        resendPeriod = 100,
         requestTimeout = 10,
         accessListSet = [
             {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
@@ -307,68 +286,8 @@ save_id_expired_test(_Config) ->
     ?_assert(true).
 
 sync_send_test(_Config) ->
-    init(sync_send_test),
-    Send_Packet = ?Parse(<<"
-        <iq xmlns='jabber:client'
-            type='get'
-            from='alice.localhost'
-            to='bob.localhost'
-            id='test_bot'>
-            <query xmlns='http://jabber.org/protocol/disco#info'/>
-        </iq>
-    ">>),
-    NS = 'http://jabber.org/protocol/disco#info',
-    Pid = self(),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    spawn(fun() -> 
-        Pid ! ecomponent:sync_send(Send_Packet, NS) 
-    end),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="result", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='result'
-                    id='test_bot'
-                    from='bob.localhost'
-                    to='alice.localhost'>
-                    <query xmlns='http://jabber.org/protocol/disco#info'>
-                        <feature var='jabber:iq:last'/>
-                    </query>
-                </iq>
-            ">>),
-        queryns=NS,
-        from={undefined,"bob.localhost",undefined}
-    },
-    ecomponent ! {Packet, default},
-    SendXML = ?ToXML(Send_Packet),
-    ?try_catch_xml(SendXML, 1000),
-    Params = #params{
-        type = "result",
-        from = {undefined,"bob.localhost",undefined},
-        to = {undefined, <<"alice.localhost">>, undefined},
-        ns=NS,
-        payload = ?Parse(<<"
-            <query xmlns='http://jabber.org/protocol/disco#info'>
-                <feature var='jabber:iq:last'/>
-            </query>
-        ">>),
-        iq = ?Parse(<<"
-            <iq xmlns='jabber:client'
-                type='result'
-                id='test_bot'
-                from='bob.localhost'
-                to='alice.localhost'>
-                <query xmlns='http://jabber.org/protocol/disco#info'>
-                    <feature var='jabber:iq:last'/>
-                </query>
-            </iq>
-        ">>),
-        server = default
-    },
-    ?try_catch(Params, 1000),
-    ?finish().
+    ecomponent_func_test:run("sync_send_test"),
+    ?_assert(true).
 
 coutdown_test(_Config) ->
     init(countdown_test),
@@ -420,6 +339,7 @@ multiconnection_test(_Config) ->
             Pid ! ID,
             server_two
     end),
+    meck:expect(timem, remove_expired, 1, []),
     meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
         Pid ! P
     end),

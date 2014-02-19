@@ -95,7 +95,7 @@ end).
     end)
 end).
 
--define(meck_component(), begin 
+-define(meck_component(), (fun() ->
     meck:new(exmpp_component),
     meck:expect(exmpp_component, start, fun() -> self() end),
     meck:expect(exmpp_component, stop, fun(_) -> ok end),
@@ -105,7 +105,7 @@ end).
 
     meck:new(ecomponent_con_sup),
     meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end)
-end).
+end)()).
 
 -define(meck_metrics(), begin 
     meck:new(metrics),

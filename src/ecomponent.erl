@@ -163,10 +163,10 @@ handle_info(
         true ->
             spawn(message_handler, pre_process_message, [
                 Type, Message, From, ServerID]),
-            {noreply, State};
+            {noreply, State, get_countdown(State)};
         _ ->
             spawn(metrics, notify_dropped_message, [Type]),
-            {noreply, State}
+            {noreply, State, get_countdown(State)}
     end;
 
 
@@ -185,10 +185,10 @@ handle_info(
         true ->
             spawn(presence_handler, pre_process_presence, [
                 Type, Presence, From, ServerID]),
-            {noreply, State};
+            {noreply, State, get_countdown(State)};
         _ ->
             spawn(metrics, notify_dropped_presence, [Type]),
-            {noreply, State}
+            {noreply, State, get_countdown(State)}
     end;
 
 handle_info({send, OPacket, NS, App, Reply, ServerID}, State) ->
@@ -274,9 +274,9 @@ handle_info({
     lager:warning("Max tries exceeded for: ~p~n", [N]),
     {noreply, State, get_countdown(State)};
 
-handle_info(timeout, #state{requestTimeout=RT}=State) ->
-    expired_stanzas(RT),
-    {noreply, reset_countdown(State), State#state.requestTimeout};
+handle_info(timeout, #state{resend=Resend,requestTimeout=RT}=State) ->
+    expired_stanzas(Resend,RT),
+    {noreply, reset_countdown(State), State#state.requestTimeout * 1000};
 
 handle_info(Record, State) -> 
     lager:info("Unknown Info Request: ~p~n", [Record]),
@@ -321,7 +321,6 @@ handle_call({change_config, Key, Value}, _From, State) ->
         maxPerPeriod -> {reply, ok, State#state{maxPerPeriod=Value}, get_countdown(State)};
         periodSeconds -> {reply, ok, State#state{periodSeconds=Value}, get_countdown(State)};
         maxTries -> {reply, ok, State#state{maxTries=Value}, get_countdown(State)};
-        resendPeriod -> {reply, ok, State#state{resendPeriod=Value}, get_countdown(State)};
         requestTimeout -> {reply, ok, State#state{requestTimeout=Value}, get_countdown(State)};
         _ -> {reply, error, State, get_countdown(State)}
     end;
@@ -361,15 +360,17 @@ code_change(_OldVsn, State, _Extra) ->
 -spec reset_countdown(State::#state{}) -> #state{}.
 
 reset_countdown(State) ->
-    {A,B,_} = now(),
+    {A,B,_} = os:timestamp(),
     State#state{timeout=(A*1000000+B)}.
 
 -spec get_countdown(Begin::integer()) -> integer().
 
+get_countdown(#state{resend=false}) ->
+    ?REQUEST_TIMEOUT * 1000;
 get_countdown(#state{timeout=undefined}) ->
     100;
 get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
-    {A,B,_} = now(),
+    {A,B,_} = os:timestamp(),
     case ((A * 1000000 + B) - Begin) of
         Time when (RT - Time) > 0 ->
             (RT - Time) * 1000;
@@ -398,7 +399,7 @@ configure() ->
     end,
     metrics:init(),
     prepare_processors(Processors),
-    {ok, reset_countdown(#state{
+    State = #state{
         jid = JID,
         whiteList = WhiteList,
         maxPerPeriod = proplists:get_value(max_per_period, Conf, ?MAX_PER_PERIOD),
@@ -407,23 +408,27 @@ configure() ->
         message_processor = proplists:get_value(message_processor, Conf, undefined),
         presence_processor = proplists:get_value(presence_processor, Conf, undefined),
         maxTries = proplists:get_value(max_tries, Conf, ?MAX_TRIES),
-        resendPeriod = proplists:get_value(resend_period, Conf, ?RESEND_PERIOD),
         requestTimeout = proplists:get_value(request_timeout, Conf, ?REQUEST_TIMEOUT),
         accessListSet = proplists:get_value(access_list_set, Conf, []),
         accessListGet = proplists:get_value(access_list_get, Conf, []),
         features = proplists:get_value(features, Conf, []),
         info = proplists:get_value(info, Conf, []), 
         disco_info = proplists:get_value(disco_info, Conf, true) 
-    })}.
+    },
+    {ok, reset_countdown(State), get_countdown(State)}.
 
 -spec gen_id() -> binary().
 
 gen_id() ->
     list_to_binary(uuid:to_string(uuid:uuid4())).
 
--spec expired_stanzas(Timeout::integer()) -> ok.
+-spec expired_stanzas(Resend::boolean(), Timeout::integer()) -> ok.
 
-expired_stanzas(Timeout) ->
+expired_stanzas(false, Timeout) ->
+    timem:remove_expired(Timeout),
+    ok;
+
+expired_stanzas(true, Timeout) ->
     [ resend(N) || {_K, N} <- timem:remove_expired(Timeout), is_record(N, matching) ],
     ok.
 
