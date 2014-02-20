@@ -1,0 +1,43 @@
+<functional>
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
+        <jid>alice.localhost</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="jabber:iq:last" type="mod" data="last"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <steps>
+        <step name="send an unknown namespace" type="send">
+            <iq xmlns='jabber:client'
+                type='get'
+                from='bob@localhost/res'
+                to='alice.localhost'
+                id='test_bot_iq'>
+                <query xmlns='whatever'/>
+            </iq>
+        </step>
+        <step name="checks" type="code"><![CDATA[
+            default = gen_server:call(ecomponent_con, get_pool),
+            default = gen_server:call(ecomponent_con, get_pool),
+            true = ecomponent_con:is_active(default)
+        ]]></step>
+        <step name="receive service-unavailable error" type="receive">
+            <iq xmlns='jabber:client'
+                type='error'
+                from='alice.localhost'
+                to='bob@localhost/res'
+                id='test_bot_iq'>
+                <query xmlns='whatever'/>
+                <error type='cancel'>
+                    <service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+                </error>
+            </iq>
+        </step>
+    </steps>
+</functional>

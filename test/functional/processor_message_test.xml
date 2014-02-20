@@ -1,0 +1,26 @@
+<functional>
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="jabber:iq:last" type="mod" data="last"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <steps>
+        <step name="send a message without processor" type="send">
+            <message
+                type='chat'
+                from='bob@localhost/res'
+                to='alice.localhost'
+                id='test_bot'>
+                <body/>
+            </message>
+        </step>
+    </steps>
+</functional>
