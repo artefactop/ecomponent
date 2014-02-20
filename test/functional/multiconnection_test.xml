@@ -1,0 +1,74 @@
+<functional>
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="server_one" type="active"/>
+            <server name="server_two" type="active"/>
+        </servers>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="true">
+            <feature var="jabber:iq:last"/>
+            <identity type="jabber:last" name="Last Component" category="text"/>
+        </disco-info>
+    </config>
+
+    <mockups>
+        <mockup module="timem" function="insert">
+            <code><![CDATA[
+                (_,_) -> ok
+            ]]></code>
+        </mockup>
+        <mockup module="timem" function="remove">
+            <code><![CDATA[
+                (ID) when is_tuple(ID) ->
+                    PID ! ID,
+                    server_two
+            ]]></code>
+        </mockup>
+        <mockup module="timem" function="remove_expired">
+            <code><![CDATA[
+                (_) -> []
+            ]]></code>
+        </mockup>
+    </mockups>
+
+    <steps>
+        <step name="send to server_to" type="send" server-id="server_two">
+            <iq xmlns='jabber:client'
+                type='get'
+                from='bob@localhost/res'
+                to='alice.localhost'
+                id='test_bot'>
+                <query xmlns='http://jabber.org/protocol/disco#info'/>
+            </iq>
+        </step>
+        <step name="timem gives information" type="code"><![CDATA[
+            receive
+                {<<"test_bot">>, <<"bob@localhost">>} -> ok;
+                Other -> throw(Other)
+            after 1000 ->
+                throw("TIMEOUT!!!")
+            end
+        ]]></step>
+        <step name="receive from server_two" type="receive">
+            <iq xmlns='jabber:client'
+                type='result'
+                from='alice.localhost'
+                to='bob@localhost/res'
+                id='test_bot'>
+                <query xmlns='http://jabber.org/protocol/disco#info'>
+                    <identity type='jabber:last'
+                              name='Last Component'
+                              category='text'/>
+                    <feature var='jabber:iq:last'/>
+                </query>
+            </iq>
+        </step>
+    </steps>
+</functional>

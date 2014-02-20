@@ -64,19 +64,8 @@ run(Test) ->
     ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
     {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
         Functional = parse_file(Test),
-        %% TODO: add server options
-        AtomicServerConf = [
-            {server, "localhost" },
-            {port, 8899},
-            {pass, "secret"}
-        ],
-        ServerConfig = [
-            {servers, [
-                {default, AtomicServerConf}
-            ]}
-        ],
         %% TODO: add mnesia clustering options
-        Config = Functional#functional.config ++ ServerConfig ++ [{mnesia_nodes, [node()]}],
+        Config = Functional#functional.config ++ [{mnesia_nodes, [node()]}],
         %% TODO: launch slaves depend on cluster configuration
         ?debugFmt("config = ~p~n", [Config]),
         ?meck_config(Config),
@@ -88,8 +77,9 @@ run(Test) ->
 
         {ok, _} = ecomponent:start_link(),
         JID = proplists:get_value(jid, Config, "ecomponent.bot"),
-        %% TODO: depends on config, launch one or more workers
-        {ok, _} = ecomponent_con_worker:start_link(default, JID, AtomicServerConf),
+        lists:foreach(fun({Name, AtomicServerConf}) ->
+            {ok, _} = ecomponent_con_worker:start_link(Name, JID, AtomicServerConf)
+        end, proplists:get_value(servers, Config, [])),
 
         (Functional#functional.start)(),
 
@@ -172,7 +162,7 @@ run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevP
         true -> run_steps(Steps, Stanza)
     end;
 
-run_steps([#step{name=Name,times=T,type=send,stanza=Stanza}=Step|Steps], _PrevPacket) ->
+run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=Step|Steps], _PrevPacket) ->
     ?debugFmt("STEP (send): ~s~n", [Name]),
     ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     #xmlel{name=PacketType} = Stanza,
@@ -188,7 +178,7 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza}=Step|Steps], _PrevPa
             FromJID#jid.resource}
     },
     ?assertNotEqual(undefined, whereis(ecomponent)),
-    ecomponent ! {Packet, default},
+    ecomponent ! {Packet, ServerID},
     if 
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], Packet);
         true -> run_steps(Steps, Packet)
@@ -327,9 +317,35 @@ parse_throttle(#xmlel{name='throttle'}=Config) ->
     [{throttle, binary_to_atom(
         exmpp_xml:get_attribute(Config, <<"active">>, <<"true">>), utf8)}].
 
+-type server_config() :: {atom(), [
+    {server, string()} | {port, pos_integer()} |
+    {secret, string()} | {type, active | passive}
+]}.
+
+-spec parse_servers(Servers :: exmpp_xml:xmlel()) -> [server_config()].
+
+parse_servers(Servers) ->
+    parse_servers(Servers, []).
+
+-spec parse_servers(Servers :: exmpp_xml:xmlel(), 
+    Config::[server_config()]) -> [server_config()].
+
+parse_servers([], Config) ->
+    Config;
+parse_servers([#xmlel{name='server'}=Server|Servers], Config) ->
+    Name = exmpp_xml:get_attribute(Server, <<"name">>, <<"default">>),
+    Type = exmpp_xml:get_attribute(Server, <<"type">>, <<"active">>),
+    ServerConfig = {binary_to_atom(Name, utf8), [
+        {server, "localhost"},
+        {port, 5555},
+        {secret, "secret"},
+        {type, binary_to_atom(Type, utf8)}
+    ]},
+    parse_servers(Servers, [ServerConfig|Config]).
+
 -type config() ::
     {syslog_name, string()} | {jid, string()} | parse_throttle_ret() |
-    parse_processors_ret() | disco_info_ret() |
+    parse_processors_ret() | disco_info_ret() | {servers, server_config()} |
     {request_timeout, pos_integer()}.
 
 -spec parse(exmpp_xml:xmlel()) -> 
@@ -347,6 +363,8 @@ parse(#xmlel{name=config, children=Configs}) ->
         (#xmlel{name='syslog'}=Config) ->
             [{syslog_name, 
                 binary_to_list(exmpp_xml:get_attribute(Config, <<"name">>, <<"ecomponent">>))}];
+        (#xmlel{name='servers', children=Servers}) ->
+            [{servers, parse_servers(Servers)}];
         (#xmlel{name='jid'}=Config) ->
             [{jid, binary_to_list(exmpp_xml:get_cdata(Config))}];
         (#xmlel{name='throttle'}=Config) ->
@@ -376,7 +394,8 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 type=Type,
                 times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
                 timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
-                stanza=Child};
+                stanza=Child,
+                idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
         (#xmlel{children=[#xmlcdata{}|_]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
             #step{

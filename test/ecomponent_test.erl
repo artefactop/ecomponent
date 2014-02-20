@@ -69,59 +69,6 @@ end_per_suite(_Config) ->
     meck:unload(),
     ok.
 
-init(multiconnection_test) ->
-    Conf = [
-        {syslog_name, "ecomponent" },
-        {jid, "ecomponent.test" },
-        {servers, [
-            {server_one, [
-                {server, "localhost" },
-                {port, 8899},
-                {pass, "secret"}
-            ]},
-            {server_two, [
-                {server, "localhost" },
-                {port, 8899},
-                {pass, "secret"}
-            ]}
-        ]},
-        {whitelist, []}, %% throttle whitelist
-        {access_list_get, []},
-        {access_list_set, [
-            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
-        ]},
-        {max_per_period, 15},
-        {period_seconds, 8},
-        {processors, [
-            {default, {mod, dummy}}
-        ]},
-        {message_processor, {mod, dummy}},
-        {presence_processor, {mod, dummy}},
-        {disco_info, true},
-        {info, [
-            {type, <<"jabber:last">>},
-            {name, <<"Last Component">>}
-        ]},
-        {features, [<<"jabber:iq:last">>]}
-    ],
-    ?meck_config(Conf),
-    meck:new(dummy),
-    {ok, _} = ecomponent:start_link(),
-    {ok, _} = ecomponent_con_worker:start_link(server_one, "ecomponent.test", [
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"}
-    ]),
-    {ok, _} = ecomponent_con_worker:start_link(server_two, "ecomponent.test", [
-        {server, "localhost" },
-        {port, 8899},
-        {pass, "secret"}
-    ]);
 init(config_test) ->
     ?meck_config([
         {syslog_name, "ecomponent" },
@@ -317,53 +264,7 @@ access_list_set_test(_Config) ->
     ?finish().
 
 multiconnection_test(_Config) ->
-    init(multiconnection_test),
-    Packet = #received_packet{
-        packet_type=iq, type_attr="get", raw_packet=
-            ?Parse(<<"
-                <iq xmlns='jabber:client'
-                    type='get'
-                    from='bob@localhost/res'
-                    to='alice.localhost'
-                    id='test_bot'>
-                    <query xmlns='http://jabber.org/protocol/disco#info'/>
-                </iq>
-            ">>),
-        from={"bob","localhost",undefined}
-    },
-    Pid = self(),
-    meck:new(timem),
-    meck:expect(timem, insert, 2, ok),
-    meck:expect(timem, remove, fun
-        (ID) when is_tuple(ID) ->
-            Pid ! ID,
-            server_two
-    end),
-    meck:expect(timem, remove_expired, 1, []),
-    meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-        Pid ! P
-    end),
-    server_two ! Packet,
-    ?try_catch({<<"test_bot">>, <<"bob@localhost">>}, 1000),
-    Reply = ?CleanXML(<<"
-        <iq xmlns='jabber:client'
-            type='result'
-            from='alice.localhost'
-            to='bob@localhost/res'
-            id='test_bot'>
-            <query xmlns='http://jabber.org/protocol/disco#info'>
-                <identity type='jabber:last'
-                          name='Last Component'
-                          category='component'/>
-                <feature var='jabber:iq:last'/>
-            </query>
-        </iq>
-    ">>),
-    ?try_catch_xml(Reply, 1000),
-    meck:unload(timem), 
-    meck:unload(application),
-    meck:unload(dummy),
-    ecomponent:stop(),
+    ecomponent_func_test:run("multiconnection_test"),
     ?_assert(true).
 
 processor_iq_test(_Config) ->

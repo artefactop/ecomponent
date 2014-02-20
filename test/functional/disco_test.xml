@@ -2,6 +2,9 @@
 
     <config>
         <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
         <jid>ecomponent.test</jid>
         <throttle active="false" max-per-period="10" period-seconds="5">
             <whitelist>
