@@ -48,14 +48,7 @@ init([ID, JIDdefault, Conf]) ->
     Server = proplists:get_value(server, Conf),
     Port = proplists:get_value(port, Conf),
     JID = proplists:get_value(jid, Conf, JIDdefault),
-    Active = case proplists:get_value(type, Conf, active) of
-        active -> true;
-        passive -> false
-    end,
-    F = case Active of
-        true -> active;
-        false -> passive
-    end,
+    F = proplists:get_value(type, Conf, active),
     case Server of
         undefined ->
             Node = proplists:get_value(node, Conf),
