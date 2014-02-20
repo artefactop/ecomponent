@@ -121,7 +121,8 @@ handle_info(
         {#received_packet{packet_type=iq}=ReceivedPacket, ServerID},
         #state{
             maxPerPeriod=MaxPerPeriod, periodSeconds=PeriodSeconds, 
-            features=Features,info=Info,disco_info=DiscoInfo
+            features=Features,info=Info,disco_info=DiscoInfo,
+            throttle=Throttle
         }=State) ->
     #received_packet{
         type_attr=Type, 
@@ -130,28 +131,31 @@ handle_info(
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
     spawn(metrics, notify_throughput_iq, [in, Type, NS]),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
-    case mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds) of
-        true ->
-            spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
-            if
-                (DiscoInfo =:= false) andalso (?NS_DISCO_INFO =:= NS) ->
-                    lager:debug("Ignored by disco#info muted! NS=~p~n", [NS]),
-                    ignore;
-                true ->
-                    lager:debug("To process packet with NS=~p~n", [NS]),
-                    spawn(iq_handler, pre_process_iq, [
-                        Type, IQ, NS, From, Features, Info, ServerID])
-            end,
-            {noreply, State, get_countdown(State)};
-        false ->
-            spawn(metrics, notify_dropped_iq, [Type, NS]),
-            {noreply, State, get_countdown(State)}
+    NoDropPacket = case Throttle of
+        true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
+        false -> true
+    end,
+    if NoDropPacket ->
+        spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+        if
+            (DiscoInfo =:= false) andalso (?NS_DISCO_INFO =:= NS) ->
+                lager:debug("Ignored by disco#info muted! NS=~p~n", [NS]),
+                ignore;
+            true ->
+                lager:debug("To process packet with NS=~p~n", [NS]),
+                spawn(iq_handler, pre_process_iq, [
+                    Type, IQ, NS, From, Features, Info, ServerID])
+        end,
+        {noreply, State, get_countdown(State)};
+    true ->
+        spawn(metrics, notify_dropped_iq, [Type, NS]),
+        {noreply, State, get_countdown(State)}
     end;
 
 handle_info(
         {#received_packet{packet_type=message}=ReceivedPacket, ServerID}, 
         #state{
-            maxPerPeriod=MaxPerPeriod, 
+            maxPerPeriod=MaxPerPeriod, throttle=Throttle,
             periodSeconds=PeriodSeconds}=State) ->
     #received_packet{
         type_attr=Type, 
@@ -159,21 +163,24 @@ handle_info(
         from={Node, Domain, _}=From}=ReceivedPacket,
     spawn(metrics, notify_throughput_message, [in, Type]),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
-    case mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds) of
-        true ->
-            spawn(message_handler, pre_process_message, [
-                Type, Message, From, ServerID]),
-            {noreply, State, get_countdown(State)};
-        _ ->
-            spawn(metrics, notify_dropped_message, [Type]),
-            {noreply, State, get_countdown(State)}
+    NoDropPacket = case Throttle of
+        true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
+        false -> true
+    end,
+    if NoDropPacket ->
+        spawn(message_handler, pre_process_message, [
+            Type, Message, From, ServerID]),
+        {noreply, State, get_countdown(State)};
+    true ->
+        spawn(metrics, notify_dropped_message, [Type]),
+        {noreply, State, get_countdown(State)}
     end;
 
 
 handle_info(
         {#received_packet{packet_type=presence}=ReceivedPacket, ServerID},
         #state{
-            maxPerPeriod=MaxPerPeriod, 
+            maxPerPeriod=MaxPerPeriod, throttle=Throttle,
             periodSeconds=PeriodSeconds}=State) ->
     #received_packet{
         type_attr=Type, 
@@ -181,14 +188,17 @@ handle_info(
         from={Node, Domain, _}=From}=ReceivedPacket,
     spawn(metrics, notify_throughput_presence, [in, Type]),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
-    case mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds) of
-        true ->
-            spawn(presence_handler, pre_process_presence, [
-                Type, Presence, From, ServerID]),
-            {noreply, State, get_countdown(State)};
-        _ ->
-            spawn(metrics, notify_dropped_presence, [Type]),
-            {noreply, State, get_countdown(State)}
+    NoDropPacket = case Throttle of
+        true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
+        false -> true
+    end,
+    if NoDropPacket ->
+        spawn(presence_handler, pre_process_presence, [
+            Type, Presence, From, ServerID]),
+        {noreply, State, get_countdown(State)};
+    true ->
+        spawn(metrics, notify_dropped_presence, [Type]),
+        {noreply, State, get_countdown(State)}
     end;
 
 handle_info({send, OPacket, NS, App, Reply, ServerID}, State) ->
@@ -393,7 +403,8 @@ configure() ->
 
     ecomponent_con:start_link(JID, Conf),
     ecomponent_mnesia:init(Conf),
-    case proplists:get_value(throttle, Conf, true) of
+    Throttle = proplists:get_value(throttle, Conf, true),
+    case Throttle of
         true -> mod_monitor:init(WhiteList);
         false -> ok
     end,
@@ -413,7 +424,8 @@ configure() ->
         accessListGet = proplists:get_value(access_list_get, Conf, []),
         features = proplists:get_value(features, Conf, []),
         info = proplists:get_value(info, Conf, []), 
-        disco_info = proplists:get_value(disco_info, Conf, true) 
+        disco_info = proplists:get_value(disco_info, Conf, true),
+        throttle = Throttle
     },
     {ok, reset_countdown(State), get_countdown(State)}.
 

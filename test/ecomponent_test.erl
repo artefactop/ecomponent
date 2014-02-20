@@ -32,8 +32,8 @@ setup_test_() ->
 
 init_per_suite() ->
     mnesia:start(),
-    ?meck_lager(),
-    ?meck_syslog(),
+    ?meck_lager(false),
+    ?meck_syslog(false),
     ?meck_component(),
     ?meck_metrics(),
     ?run_exmpp(),

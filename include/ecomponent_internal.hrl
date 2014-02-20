@@ -44,5 +44,6 @@
     timeout = undefined :: integer(),
     features = [] :: [binary()],
     info = [] :: proplists:proplists(),
-    disco_info = true :: boolean()
+    disco_info = true :: boolean(),
+    throttle = true :: boolean()
 }).
