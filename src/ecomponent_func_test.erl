@@ -9,13 +9,15 @@
 
 -include("ecomponent_test.hrl").
 
+-spec check(Test :: [string()]) -> {timeout, integer(), function()}.
+
 check(Test) ->
     check(Test, 120, false).
 
 check(Test, Timeout) ->
     check(Test, Timeout, false).
 
-check(Tests, Timeout, Verbose) when is_list(Tests) ->
+check(Tests, Timeout, Verbose) ->
     {timeout, Timeout, ?_assert(begin
         net_kernel:start([ecomponent@localhost, shortnames]),
         timer:sleep(1000),
@@ -30,10 +32,9 @@ check(Tests, Timeout, Verbose) when is_list(Tests) ->
         unmock(),
         net_kernel:stop(),
         true
-    end)};
+    end)}.
 
-check(Test, Timeout, Verbose) ->
-    check([Test], Timeout, Verbose).
+-spec parse_file(Test :: string()) -> functional().
 
 parse_file(Test) ->
     File = "../test/functional/" ++ Test ++ ".xml",
@@ -56,6 +57,8 @@ parse_file(Test) ->
             [] -> F
         end
     end, #functional{}, Cleaned#xmlel.children).
+
+-spec run(Test :: string()) -> ok.
 
 run(Test) ->
     ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
@@ -109,6 +112,8 @@ run(Test) ->
     end,
     ok.
 
+-spec mock(Mockups :: [mockup()]) -> ok.
+
 mock(Mockups) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
@@ -118,10 +123,14 @@ mock(Mockups) when is_list(Mockups) ->
     [ mock_functions(M) || M <- Mockups ],
     ok.
 
+-spec mock_functions(mockup()) -> ok.
+
 mock_functions(#mockup{module=M,function=F,code=Code}) ->
     ?debugFmt("mockup ~p:~p~n", [M,F]),
     meck:expect(M, F, Code),
     ok.
+
+-spec unmock(Mockups :: [mockup()]) -> ok.
 
 unmock(Mockups) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
@@ -130,12 +139,18 @@ unmock(Mockups) when is_list(Mockups) ->
     end, Modules),
     ok.
 
+-spec unmock() -> ok.
+
 unmock() ->
     meck:unload(),
     ok.
 
+-spec run_steps(Steps :: [step()]) -> ok.
+
 run_steps(Steps) ->
     run_steps(Steps, undefined).
+
+-spec run_steps(Steps :: [step()], PrevPacket :: exmpp_xml:xmlel()) -> ok.
 
 run_steps([],_) ->
     ok;
@@ -194,6 +209,10 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps], _P
         true -> run_steps(Steps, Stanza)
     end.
 
+-type any_xml() :: exmpp_xml:xmlel() | exmpp_xml:xmlcdata().
+
+-spec compare_stanza(any_xml(), any_xml()) -> ok.
+
 compare_stanza(#xmlcdata{cdata=Data}, #xmlcdata{cdata=Data}) -> ok;
 compare_stanza(#xmlcdata{cdata=_}, #xmlcdata{cdata = <<"{{_}}">>}) -> ok;
 compare_stanza(#xmlcdata{cdata = <<"{{_}}">>}, #xmlcdata{cdata=_}) -> ok;
@@ -226,6 +245,17 @@ compare_stanza(
     end, lists:zip(ChildrenA, ChildrenB)),
     true.
 
+-type iq_processor_config() :: {atom(), {mod | app, atom()}}.
+-type message_processor_config() :: {message_processor, {mod | app, atom()}}.
+-type presence_processor_config() :: {presence_processor, {mod | app, atom()}}.
+-type processors_config() :: {processors, [iq_processor_config()]}.
+
+-type parse_processors_ret() ::
+    [processors_config() | message_processor_config() | 
+    presence_processor_config() | []].
+
+-spec parse_processors([exmpp_xml:xmlel()]) -> parse_processors_ret().
+
 parse_processors(Processors) ->
     lists:foldl(fun
         (#xmlel{name='iq', ns=NS}=IQ, [{processors,I},M,P]) ->
@@ -242,6 +272,18 @@ parse_processors(Processors) ->
             [I,M,{presence_processor, {binary_to_atom(Type, utf8), binary_to_atom(Data, utf8)}}]
     end, [{processors, []},[],[]], Processors).
 
+-type disco_info() :: {disco_info, boolean()}.
+-type disco_info_features() :: {features, [binary()]}.
+-type disco_info_info() :: {info, [
+    {type, binary()} | {name, binary()} | {category, binary()}
+]}.
+
+-type disco_info_ret() :: 
+    [disco_info() | disco_info_features() | disco_info_info()].
+
+-spec parse_disco_info(exmpp_xml:xmlel()) ->
+    disco_info_ret().
+
 parse_disco_info(#xmlel{name='disco-info',children=Data}=Config) ->
     Active = binary_to_atom(exmpp_xml:get_attribute(Config, <<"active">>, <<"false">>), utf8),
     [{disco_info, Active}] ++ lists:foldl(fun
@@ -255,6 +297,15 @@ parse_disco_info(#xmlel{name='disco-info',children=Data}=Config) ->
             I = {info, [{type, Type}, {name, Name}, {category, Category}]},
             [Features,I]
     end, [{features,[]},[]], Data).
+
+-type parse_throttle_ret() :: [
+    {max_per_period, pos_integer()} |
+    {period_seconds, pos_integer()} |
+    {whitelist, [binary()]} |
+    {throttle, boolean()}
+].
+
+-spec parse_throttle(exmpp_xml:xmlel()) -> parse_throttle_ret().
 
 parse_throttle(#xmlel{name='throttle'}=Config) ->
     case exmpp_xml:get_attribute(Config, <<"max-per-period">>, undefined) of
@@ -275,6 +326,15 @@ parse_throttle(#xmlel{name='throttle'}=Config) ->
     end ++
     [{throttle, binary_to_atom(
         exmpp_xml:get_attribute(Config, <<"active">>, <<"true">>), utf8)}].
+
+-type config() ::
+    {syslog_name, string()} | {jid, string()} | parse_throttle_ret() |
+    parse_processors_ret() | disco_info_ret() |
+    {request_timeout, pos_integer()}.
+
+-spec parse(exmpp_xml:xmlel()) -> 
+    {'start-code', function()} | {'stop-code', function()} | 
+    [config()] | [mockup()] | [step()].
 
 parse(#xmlel{name='start-code'}=Start) ->
     {'start-code', bin_to_code(general, exmpp_xml:get_cdata(Start))};
@@ -326,6 +386,8 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 stanza=bin_to_code(steps, exmpp_xml:get_cdata(Step))}
     end, Steps).
 
+-spec bin_to_code(general | steps | mockup, binary()) -> function().
+
 bin_to_code(general, B) ->
     bin_to_code(<<"fun() -> ", B/binary, " end.">>);
 
@@ -335,6 +397,10 @@ bin_to_code(steps, B) ->
 bin_to_code(mockup, B) ->
     GenFun = bin_to_code(<<"fun(PID) -> fun", B/binary, " end end.">>),
     GenFun(self()).
+
+-type attribute() :: {attribute, pos_integer(), record, RecordDef::term()}.
+
+-spec get_defs(Module::atom()) -> [attribute()].
 
 get_defs(Module) ->
     case code:is_loaded(Module) of
@@ -348,6 +414,8 @@ get_defs(Module) ->
         [{N,I,D} || {attribute,I,record,{N,_}}=D <- Forms])),
     [ Def || {_Name,_I,Def} <- Recs ].
 
+-spec bin_to_code(binary()) -> function().
+
 bin_to_code(B) ->
     Code = binary_to_list(B),
     {ok, Tokens, _} = erl_scan:string(Code),
@@ -359,8 +427,12 @@ bin_to_code(B) ->
     {value, Fun, _} = erl_eval:expr(NewForm, []),
     Fun.
 
+-spec bin_to_integer(binary()) -> integer().
+
 bin_to_integer(B) ->
     list_to_integer(binary_to_list(B)).
+
+-spec bin_to_type(binary()) -> 'receive' | 'code' | 'store' | 'send'.
 
 bin_to_type(<<"receive">>) -> 'receive';
 bin_to_type(<<"code">>) -> 'code';

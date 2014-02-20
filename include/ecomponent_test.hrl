@@ -29,6 +29,8 @@
     stop = fun() -> ok end :: function()
 }).
 
+-type functional() :: #functional{}.
+
 -define(run_exmpp(), begin
     case lists:keyfind(exmpp, 1, application:loaded_applications()) of
         false ->
