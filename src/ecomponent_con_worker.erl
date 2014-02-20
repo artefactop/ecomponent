@@ -221,6 +221,7 @@ make_connection(JID, Pass, Server, Port, Tries) ->
         Class:Exception ->
             lager:warning("Exception ~p: ~p~n",[Class, Exception]),
             exmpp_component:stop(XmppCom),
+            clean_exit_normal(),
             timer:sleep((20-Tries) * 200),
             make_connection(JID, Pass, Server, Port, Tries-1)
     end.
@@ -232,3 +233,10 @@ setup_exmpp_component(XmppCom, JID, Pass, Server, Port)->
     exmpp_component:connect(XmppCom, Server, Port),
     exmpp_component:handshake(XmppCom).
 
+-spec clean_exit_normal() -> ok.
+
+clean_exit_normal() ->
+    receive 
+        {_Ref, normal} -> ok
+    after 500 -> ok
+    end.
