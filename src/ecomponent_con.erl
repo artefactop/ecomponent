@@ -152,6 +152,9 @@ handle_call(stop, _From, #state{active=Pools, down=Down}=State) ->
 handle_call({is_active, ID}, _From, #state{active=Pools, passive=Passive}=State) ->
     {reply, lists:member(ID, Pools) orelse lists:member(ID, Passive), State};
 
+handle_call(get_pool, _From, #state{active=[], passive=[Pool|Pools]}=State) ->
+    {reply, Pool, State#state{passive=Pools ++ [Pool]}};
+
 handle_call(get_pool, _From, #state{active=[Pool|Pools]}=State) ->
     {reply, Pool, State#state{active=Pools ++ [Pool]}};
 
