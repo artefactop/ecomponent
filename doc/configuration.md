@@ -1,14 +1,14 @@
 Configuration
 =============
 
-###ecomponent (general params)
+##ecomponent (general params)
 
 The basic configuration for the ecomponent project is as follow:
 
 - `syslog_name::string()` default value is `ecomponent`. Optional.  
 - `jid::string()` external component domain.  
 
-###processors
+##processors
 
 The processors handle requests depend on if the stanza is an IQ, a presence or a messsage:
 
@@ -72,7 +72,7 @@ process_iq(#params{}=Params) ->
 
 The use of `app` instead of `mod` is only recommended when a state should be kept between requests. Be careful with this, because the use of `app` could generate a bottleneck.
 
-###resend IQs
+##resend IQs
 
 When ecomponent send an IQ to the server tracks for a reply (else you use `false` in `reply` param for `send` function). If the reply is not received in a configured time, ecomponent resend the reply again.
 
@@ -84,7 +84,7 @@ The configuration params available:
 - `request_timeout` (integer, seconds) - time between resends for each IQ stanza.
 - `max_tries` (integer) - the number of tries for send the IQ stanza.
 
-###server configuration
+##server configuration
 
 You can configure only one server to connect through XMPP, several connections (each one with its own id) or shared connections (connections through another node in the cluster).
 
@@ -162,7 +162,9 @@ If you want to use a connection only for receive stanzas (and reply them) you ca
 
 The valid values for `type` option can be `active` (by default) and `passive` for only receive stanzas (and reply them if needed).
 
-###throttle configuration
+When `ecomponent:send`, `ecomponent:send_message` or `ecomponent:send_presence` is used, the message goes to the connection indicated, but if the connection is down or is not indicated, the system tries with another one in a round-robin way. First with `active` connections and if there aren't `active` connections available, then goes to `passive` connections.
+
+##throttle configuration
 
 If you want to avoid a collapse for your component, you can configure a throttle with the follow params inside the `ecomponent` main tag:
 
@@ -175,7 +177,7 @@ All the request arriving to the component will be anoted in `mod_monitor`. If th
 
 All the JIDs inside `whitelist` will be ignored by the monitor.
 
-###granting access to IQs
+##granting access to IQs
 
 The requests to IQs can be filtered by users (JIDs) using ACLs. This ACLs are set by namespace, type and JID. A user (JID) can be granted for a namespace in a specific type. The params for configuration inside `ecomponent` tag are the following:
 
@@ -192,7 +194,7 @@ It's possible specify that `user1@domain.com` can access to `jabber:iq:time` for
 
 Note that if the configuration for these parameters is omitted all the users can access to all the IQs.
 
-###disco info
+##disco info
 
 There are a couple of params to configure the behaviour when the server requires a `disco#info` from the component. In this case we can use set a reply like this:
 
@@ -232,7 +234,7 @@ Only we need to add this configuration to the config file:
 {disco_info, true}
 ```
 
-###clustering with mnesia
+##clustering with mnesia
 
 Scale ecomponent is pretty easy with these params:
 
@@ -262,7 +264,7 @@ And in the config file:
 ]}
 ```
 
-###folsom
+##folsom
 
 Dependency: [folsom](https://github.com/boundary/folsom_cowboy)
 
@@ -278,11 +280,11 @@ The default values are:
 - message throughput by type (normal, chat, groupchat, ...). [spiral](https://github.com/boundary/folsom#spiral-meter).
 - message dropped by type. [spiral](https://github.com/boundary/folsom#spiral-meter).
 
-###lager
+##lager
 
 Dependency: [lager configuration](https://github.com/basho/lager#configuration)
 
-###Config file example
+##Config file example
 
 The example file `app.config` have the following sections:
 ```
