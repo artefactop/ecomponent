@@ -186,7 +186,7 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
         true -> run_steps(Steps, Packet)
     end;
 
-run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps], _PrevPacket) ->
+run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], _PrevPacket) ->
     ?debugFmt("STEP (receive): ~s~n", [Name]),
     ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     receive
@@ -199,6 +199,14 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=Stanza}=Step|Steps], _P
     if 
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
         true -> run_steps(Steps, Stanza)
+    end;
+
+run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket) ->
+    ?debugFmt("STEP (code receive): ~s~n", [Name]),
+    Fun(PrevPacket, self()),
+    if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
+        true -> run_steps(Steps, PrevPacket)
     end.
 
 -type any_xml() :: exmpp_xml:xmlel() | exmpp_xml:xmlcdata().
@@ -405,11 +413,23 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
         (#xmlel{children=[#xmlcdata{}|_]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
+            CodeText = exmpp_xml:get_cdata(Step),
+            Fun = case Type of
+            code -> 
+                bin_to_code(steps, CodeText);
+            'receive' -> 
+                Timeout = exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>),
+                Code = <<"receive ", CodeText/binary, 
+                    " -> ok; Other -> throw(Other) after ", 
+                    Timeout/binary, " -> throw(\"TIMEOUT!!!\") end">>,
+                bin_to_code(steps, Code)
+            end,
+            Times = exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>),
             #step{
                 name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
                 type=Type,
-                times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
-                stanza=bin_to_code(steps, exmpp_xml:get_cdata(Step))}
+                times=bin_to_integer(Times),
+                stanza=Fun}
     end, Steps).
 
 -spec bin_to_code(general | steps | mockup, binary()) -> function().
