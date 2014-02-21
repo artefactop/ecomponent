@@ -46,8 +46,10 @@ parse_file(Test) ->
         case parse(Xmlel) of
             [#step{}|_]=NewSteps -> 
                 F#functional{steps=Steps ++ NewSteps};
-            [#mockup{}|_]=NewMockups -> 
-                F#functional{mockups=Mockups ++ NewMockups};
+            {MockOpts,[#mockup{}|_]=NewMockups} -> 
+                F#functional{
+                    mockups=Mockups ++ NewMockups, 
+                    mock_opts=MockOpts};
             {'start-code', Code} ->
                 F#functional{start=Code};
             {'stop-code', Code} ->
@@ -73,7 +75,7 @@ run(Test) ->
         meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
             PID ! P
         end),
-        mock(Functional#functional.mockups),
+        mock(Functional#functional.mockups, Functional#functional.mock_opts),
 
         {ok, _} = ecomponent:start_link(),
         JID = proplists:get_value(jid, Config, "ecomponent.bot"),
@@ -102,13 +104,13 @@ run(Test) ->
     end,
     ok.
 
--spec mock(Mockups :: [mockup()]) -> ok.
+-spec mock(Mockups :: [mockup()], [atom()]) -> ok.
 
-mock(Mockups) when is_list(Mockups) ->
+mock(Mockups,Opts) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
-        ?debugFmt("meck:new(~p).~n", [M]),
-        meck:new(M)
+        ?debugFmt("meck:new(~p, ~p).~n", [M,Opts]),
+        meck:new(M, Opts)
     end, Modules),
     [ mock_functions(M) || M <- Mockups ],
     ok.
@@ -377,13 +379,18 @@ parse(#xmlel{name=config, children=Configs}) ->
             [{request_timeout, bin_to_integer(exmpp_xml:get_attribute(Config, <<"value">>, <<"30">>))}]
     end, Configs);
 
-parse(#xmlel{name=mockups, children=Mockups}) ->
-    lists:map(fun(#xmlel{}=Mockup) ->
+parse(#xmlel{name=mockups, children=Mockups}=MockupsTag) ->
+    MockOpts = case exmpp_xml:get_attribute(MockupsTag, <<"passthrough">>, <<"false">>) of
+        <<"true">> -> [passthrough];
+        _ -> []
+    end,
+    MockConfigs = lists:map(fun(#xmlel{}=Mockup) ->
         #mockup{
             module=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"module">>, <<>>), utf8),
             function=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"function">>, <<>>), utf8),
             code=bin_to_code(mockup, exmpp_xml:get_path(Mockup, [{element, 'code'}, cdata]))}
-    end, Mockups);
+    end, Mockups),
+    {MockOpts, MockConfigs};
 
 parse(#xmlel{name=steps, children=Steps}) ->
     lists:map(fun

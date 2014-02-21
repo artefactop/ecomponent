@@ -24,6 +24,7 @@
 
 -record(functional, {
     mockups = [] :: [mockup()],
+    mock_opts = [] :: [atom()],
     steps = [] :: [step()],
     config = [] :: [term()],
     start = fun() -> ok end :: function(),
