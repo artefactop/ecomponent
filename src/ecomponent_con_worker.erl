@@ -16,7 +16,8 @@
     server :: string(),
     port :: integer(),
     node :: atom(),
-    group :: atom()
+    group :: atom(),
+    conn_type = active :: active | passive
 }).
 
 %% gen_server callbacks
@@ -60,11 +61,11 @@ init([{ID, Group}, JIDdefault, Conf]) ->
         undefined ->
             Node = proplists:get_value(node, Conf),
             erlang:monitor_node(Node, true),
-            ecomponent_con:F(ID),
+            ecomponent_con:F(ID, Group),
             {ok, #state{type = node, node = Node, group=Group}};
         _ ->
             {_, XmppCom} = make_connection(JID, Pass, Server, Port),
-            ecomponent_con:F(ID),
+            ecomponent_con:F(ID, Group),
             {ok, #state{
                 type = server,
                 xmppCom = XmppCom,
@@ -73,7 +74,8 @@ init([{ID, Group}, JIDdefault, Conf]) ->
                 pass = Pass,
                 server = Server,
                 port = Port,
-                group = Group
+                group = Group,
+                conn_type = F
             }}
     end.
 
@@ -133,32 +135,32 @@ handle_info({send, Packet}, #state{xmppCom=XmppCom, jid=JID}=State) ->
     exmpp_component:send_packet(XmppCom, NewPacket),
     {noreply, State};
 
-handle_info({down, Node}, #state{node=Node}=State) ->
+handle_info({down, Node}, #state{node=Node, conn_type=F}=State) ->
     lager:info("Connection to ~p closed. Trying to reconnect...~n", [Node]),
     ecomponent_con:down(State#state.id),
     case net_kernel:connect_node(Node) of
     true ->
         lager:info("Reconnected ~p.~n", [Node]),
-        ecomponent_con:active(State#state.id);
+        ecomponent_con:F(State#state.id);
     false ->
         timer:sleep(500)
     end,
     {noreply, State};
 
-handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
+handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port, conn_type=F}=State) ->
     lager:info("Connection to ~s closed. Trying to reconnect...~n", [Server]),
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected ~s.~n", [Server]),
-    ecomponent_con:active(State#state.id),
+    ecomponent_con:F(State#state.id),
     {noreply, State#state{xmppCom=XmppCom}};
 
-handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
+handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port, conn_type=F}=State) ->
     lager:info("Connection to ~s closed. Trying to reconnect...~n", [Server]),
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected ~s.~n", [Server]),
-    ecomponent_con:active(State#state.id),
+    ecomponent_con:F(State#state.id),
     {noreply, State#state{xmppCom=XmppCom}};
 
 handle_info(Record, State) -> 
