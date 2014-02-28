@@ -1,0 +1,18 @@
+@title eComponent
+
+@doc
+<a href="https://travis-ci.org/altenwald/ecomponent"><img src="https://api.travis-ci.org/altenwald/ecomponent.png" alt="Build Status"/></a>
+
+Framework for write XMPP external components <a href="http://xmpp.org/extensions/xep-0114.html">XEP-0114</a> in Erlang/OTP
+
+By default support:
+
+* <a href="http://xmpp.org/extensions/xep-0030.html">XEP-0030 - Service Discovery</a>
+* <a href="http://xmpp.org/extensions/xep-0199.html">XEP-0199 - XMPP Ping</a>
+
+- - -
+
+For more information:
+
+* <a href="doc/configuration.md">Configuration</a>
+* <a href="doc/testing.md">Testing</a>

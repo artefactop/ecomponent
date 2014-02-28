@@ -1,18 +1,41 @@
-eComponent
-==========
+
+
+# eComponent #
+
 
 [![Build Status](https://api.travis-ci.org/altenwald/ecomponent.png)](https://travis-ci.org/altenwald/ecomponent)
 
-Framework for write XMPP external components [XEP-0114](http://xmpp.org/extensions/xep-0114.html) in Erlang/OTP
+Framework for write XMPP external components [XEP-0114](http://xmpp.org/extensions/xep-0114.md) in Erlang/OTP
 
 By default support:
 
- * [XEP-0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html)
- * [XEP-0199 - XMPP Ping](http://xmpp.org/extensions/xep-0199.html)
+* [XEP-0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.md)
+* [XEP-0199 - XMPP Ping](http://xmpp.org/extensions/xep-0199.md)
 
 - - -
 
 For more information:
+* [Configuration](http://github.com/altenwald/ecomponent/blob/simple/doc/configuration.md)
+* [Testing](http://github.com/altenwald/ecomponent/blob/simple/doc/testing.md)
 
-* [Configuration](doc/configuration.md)
-* [Testing](doc/testing.md)
+
+## Modules ##
+
+
+<table width="100%" border="0" summary="list of modules">
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent.md" class="module">ecomponent</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_app.md" class="module">ecomponent_app</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_con.md" class="module">ecomponent_con</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_con_sup.md" class="module">ecomponent_con_sup</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_con_worker.md" class="module">ecomponent_con_worker</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_func_test.md" class="module">ecomponent_func_test</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_mnesia.md" class="module">ecomponent_mnesia</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_sup.md" class="module">ecomponent_sup</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/iq_handler.md" class="module">iq_handler</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/message_handler.md" class="module">message_handler</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/metrics.md" class="module">metrics</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/mod_monitor.md" class="module">mod_monitor</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/presence_handler.md" class="module">presence_handler</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/processor.md" class="module">processor</a></td></tr>
+<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/timem.md" class="module">timem</a></td></tr></table>
+

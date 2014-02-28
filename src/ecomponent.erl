@@ -107,7 +107,7 @@ send_presence(Packet, ServerID) ->
     {ok, State :: #state{}} | 
     {ok, State :: #state{}, hibernate | infinity | non_neg_integer()} |
     ignore | {stop, Reason :: string()}.
-
+%@hidden
 init([]) ->
     lager:info("Loading Application eComponent", []),
     configure().
@@ -116,7 +116,7 @@ init([]) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_info(
         {#received_packet{packet_type=iq}=ReceivedPacket, ServerID},
         #state{
@@ -296,7 +296,7 @@ handle_info(Record, State) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_cast(_Msg, State) ->
     lager:info("Received: ~p~n", [_Msg]), 
     {noreply, State, get_countdown(State)}.
@@ -310,7 +310,7 @@ handle_cast(_Msg, State) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
     lager:debug("Received Call: ~p~n", [Info]),
     {reply, is_allowed(set, NS, Jid, State), State, get_countdown(State)};
@@ -352,14 +352,14 @@ handle_call(Info, _From, State) ->
 
 
 -spec terminate(Reason::any(), State::#state{}) -> ok.
-
+%@hidden
 terminate(_Reason, _State) ->
     lager:info("Terminated Component.", []),
     ok.
 
 -spec code_change(OldVsn::string(), State::#state{}, Extra::any()) ->
     {ok, State::#state{}}.
-
+%@hidden
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
