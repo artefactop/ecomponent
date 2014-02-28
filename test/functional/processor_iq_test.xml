@@ -27,7 +27,7 @@
             default = gen_server:call(ecomponent_con, get_pool),
             true = ecomponent_con:is_active(default)
         ]]></step>
-        <step name="receive service-unavailable error" type="receive">
+        <step name="receive feature-not-implemented error" type="receive">
             <iq xmlns='jabber:client'
                 type='error'
                 from='alice.localhost'
@@ -35,7 +35,7 @@
                 id='test_bot_iq'>
                 <query xmlns='whatever'/>
                 <error type='cancel'>
-                    <service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+                    <feature-not-implemented xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
                 </error>
             </iq>
         </step>
