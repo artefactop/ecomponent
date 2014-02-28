@@ -10,13 +10,32 @@
 -include("ecomponent_test.hrl").
 
 -spec check(Test :: [string()]) -> {timeout, integer(), function()}.
-
+%@doc Execute the suite for the list of tests passed as param. This function
+%     set the environment and run all the tests in the list.
+%@end
 check(Test) ->
     check(Test, 120, false).
 
+-spec check(
+    Test :: [string()], 
+    Timeout :: pos_integer()) -> {timeout, integer(), function()}.
+%@doc Execute the suite for the list of tests passed as param. This function
+%     set the environment and run all the tests in the list. As second param
+%     you can configure the timeout for the suite of tests.
+%@end
 check(Test, Timeout) ->
     check(Test, Timeout, false).
 
+-spec check(
+    Test :: [string()], 
+    Timeout :: pos_integer(),
+    Verbose :: boolean()) -> {timeout, integer(), function()}.
+%@doc Execute the suite for the list of tests passed as param. This function
+%     set the environment and run all the tests in the list. As second param
+%     you can configure the timeout for the suite of tests and as third
+%     param you can set if you want to show all the logs (lager and syslog)
+%     or not.
+%@end
 check(Tests, Timeout, Verbose) ->
     {timeout, Timeout, ?_assert(begin
         net_kernel:start([ecomponent@localhost, shortnames]),
@@ -34,34 +53,10 @@ check(Tests, Timeout, Verbose) ->
         true
     end)}.
 
--spec parse_file(Test :: string()) -> functional().
-
-parse_file(Test) ->
-    File = "../test/functional/" ++ Test ++ ".xml",
-    {ok,XML} = file:read_file(File),
-    [Parsed|_] = exmpp_xmlstream:parse_element(XML),
-    Cleaned = exmpp_xml:remove_whitespaces_deeply(Parsed),
-    lists:foldl(fun(Xmlel, #functional{
-            steps=Steps, mockups=Mockups}=F) ->
-        case parse(Xmlel) of
-            [#step{}|_]=NewSteps -> 
-                F#functional{steps=Steps ++ NewSteps};
-            {MockOpts,[#mockup{}|_]=NewMockups} -> 
-                F#functional{
-                    mockups=Mockups ++ NewMockups, 
-                    mock_opts=MockOpts};
-            {'start-code', Code} ->
-                F#functional{start=Code};
-            {'stop-code', Code} ->
-                F#functional{stop=Code};
-            [{_,_}|_]=Config ->
-                F#functional{config=Config};
-            [] -> F
-        end
-    end, #functional{}, Cleaned#xmlel.children).
-
 -spec run(Test :: string()) -> ok.
-
+%@doc Run a single test. This function runs a single test without prepare
+%     the environment.
+%@end
 run(Test) ->
     ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
     {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
@@ -104,8 +99,34 @@ run(Test) ->
     end,
     ok.
 
--spec mock(Mockups :: [mockup()], [atom()]) -> ok.
+-spec parse_file(Test :: string()) -> functional().
+%@hidden
+parse_file(Test) ->
+    File = "../test/functional/" ++ Test ++ ".xml",
+    {ok,XML} = file:read_file(File),
+    [Parsed|_] = exmpp_xmlstream:parse_element(XML),
+    Cleaned = exmpp_xml:remove_whitespaces_deeply(Parsed),
+    lists:foldl(fun(Xmlel, #functional{
+            steps=Steps, mockups=Mockups}=F) ->
+        case parse(Xmlel) of
+            [#step{}|_]=NewSteps -> 
+                F#functional{steps=Steps ++ NewSteps};
+            {MockOpts,[#mockup{}|_]=NewMockups} -> 
+                F#functional{
+                    mockups=Mockups ++ NewMockups, 
+                    mock_opts=MockOpts};
+            {'start-code', Code} ->
+                F#functional{start=Code};
+            {'stop-code', Code} ->
+                F#functional{stop=Code};
+            [{_,_}|_]=Config ->
+                F#functional{config=Config};
+            [] -> F
+        end
+    end, #functional{}, Cleaned#xmlel.children).
 
+-spec mock(Mockups :: [mockup()], [atom()]) -> ok.
+%@hidden
 mock(Mockups,Opts) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
@@ -116,14 +137,14 @@ mock(Mockups,Opts) when is_list(Mockups) ->
     ok.
 
 -spec mock_functions(mockup()) -> ok.
-
+%@hidden
 mock_functions(#mockup{module=M,function=F,code=Code}) ->
     ?debugFmt("mockup ~p:~p~n", [M,F]),
     meck:expect(M, F, Code),
     ok.
 
 -spec unmock(Mockups :: [mockup()]) -> ok.
-
+%@hidden
 unmock(Mockups) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
@@ -132,18 +153,18 @@ unmock(Mockups) when is_list(Mockups) ->
     ok.
 
 -spec unmock() -> ok.
-
+%@hidden
 unmock() ->
     meck:unload(),
     ok.
 
 -spec run_steps(Steps :: [step()]) -> ok.
-
+%@hidden
 run_steps(Steps) ->
     run_steps(Steps, undefined).
 
 -spec run_steps(Steps :: [step()], PrevPacket :: exmpp_xml:xmlel()) -> ok.
-
+%@hidden
 run_steps([],_) ->
     ok;
 
@@ -212,7 +233,7 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevP
 -type any_xml() :: exmpp_xml:xmlel() | exmpp_xml:xmlcdata().
 
 -spec compare_stanza(any_xml(), any_xml()) -> ok.
-
+%@hidden
 compare_stanza(#xmlcdata{cdata=Data}, #xmlcdata{cdata=Data}) -> ok;
 compare_stanza(#xmlcdata{cdata=_}, #xmlcdata{cdata = <<"{{_}}">>}) -> ok;
 compare_stanza(#xmlcdata{cdata = <<"{{_}}">>}, #xmlcdata{cdata=_}) -> ok;
@@ -255,7 +276,7 @@ compare_stanza(
     presence_processor_config() | []].
 
 -spec parse_processors([exmpp_xml:xmlel()]) -> parse_processors_ret().
-
+%@hidden
 parse_processors(Processors) ->
     lists:foldl(fun
         (#xmlel{name='iq', ns=NS}=IQ, [{processors,I},M,P]) ->
@@ -283,7 +304,7 @@ parse_processors(Processors) ->
 
 -spec parse_disco_info(exmpp_xml:xmlel()) ->
     disco_info_ret().
-
+%@hidden
 parse_disco_info(#xmlel{name='disco-info',children=Data}=Config) ->
     Active = binary_to_atom(exmpp_xml:get_attribute(Config, <<"active">>, <<"false">>), utf8),
     [{disco_info, Active}] ++ lists:foldl(fun
@@ -306,7 +327,7 @@ parse_disco_info(#xmlel{name='disco-info',children=Data}=Config) ->
 ].
 
 -spec parse_throttle(exmpp_xml:xmlel()) -> parse_throttle_ret().
-
+%@hidden
 parse_throttle(#xmlel{name='throttle'}=Config) ->
     case exmpp_xml:get_attribute(Config, <<"max-per-period">>, undefined) of
         undefined -> [];
@@ -333,13 +354,13 @@ parse_throttle(#xmlel{name='throttle'}=Config) ->
 ]}.
 
 -spec parse_servers(Servers :: exmpp_xml:xmlel()) -> [server_config()].
-
+%@hidden
 parse_servers(Servers) ->
     parse_servers(Servers, []).
 
 -spec parse_servers(Servers :: exmpp_xml:xmlel(), 
     Config::[server_config()]) -> [server_config()].
-
+%@hidden
 parse_servers([], Config) ->
     Config;
 parse_servers([#xmlel{name='server'}=Server|Servers], Config) ->
@@ -361,7 +382,7 @@ parse_servers([#xmlel{name='server'}=Server|Servers], Config) ->
 -spec parse(exmpp_xml:xmlel()) -> 
     {'start-code', function()} | {'stop-code', function()} | 
     [config()] | [mockup()] | [step()].
-
+%@hidden
 parse(#xmlel{name='start-code'}=Start) ->
     {'start-code', bin_to_code(general, exmpp_xml:get_cdata(Start))};
 
@@ -433,7 +454,7 @@ parse(#xmlel{name=steps, children=Steps}) ->
     end, Steps).
 
 -spec bin_to_code(general | steps | mockup, binary()) -> function().
-
+%@hidden
 bin_to_code(general, B) ->
     bin_to_code(<<"fun() -> ", B/binary, " end.">>);
 
@@ -447,7 +468,7 @@ bin_to_code(mockup, B) ->
 -type attribute() :: {attribute, pos_integer(), record, RecordDef::term()}.
 
 -spec get_defs(Module::atom()) -> [attribute()].
-
+%@hidden
 get_defs(Module) ->
     case code:is_loaded(Module) of
         true -> ok;
@@ -461,7 +482,7 @@ get_defs(Module) ->
     [ Def || {_Name,_I,Def} <- Recs ].
 
 -spec bin_to_code(binary()) -> function().
-
+%@hidden
 bin_to_code(B) ->
     Code = binary_to_list(B),
     {ok, Tokens, _} = erl_scan:string(Code),
@@ -474,12 +495,12 @@ bin_to_code(B) ->
     Fun.
 
 -spec bin_to_integer(binary()) -> integer().
-
+%@hidden
 bin_to_integer(B) ->
     list_to_integer(binary_to_list(B)).
 
 -spec bin_to_type(binary()) -> 'receive' | 'code' | 'store' | 'send'.
-
+%@hidden
 bin_to_type(<<"receive">>) -> 'receive';
 bin_to_type(<<"code">>) -> 'code';
 bin_to_type(<<"store">>) -> 'store';

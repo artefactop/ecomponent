@@ -1,3 +1,4 @@
+%@hidden
 -module(ecomponent_mnesia).
 
 -include("ecomponent.hrl").

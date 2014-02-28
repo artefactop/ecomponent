@@ -12,7 +12,9 @@
     Presence::term(), 
     From::ecomponent:jid(),
     ServerID :: atom()) -> ok.
-
+%@doc Pre process the presence stanza. If the presence is an 'error' type 
+%     presence should be addressed to the forward_response.
+%@end
 pre_process_presence("error", Presence, From, ServerID) ->
     To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(Presence)),
     forward_response(#presence{
@@ -23,7 +25,9 @@ pre_process_presence(Type, Presence, From, ServerID) ->
         type=Type, from=From, to=To, xmlel=Presence, server=ServerID}).
 
 -spec forward( Presence::#presence{} ) -> ok.
-
+%@doc Forward the presence directly. This function forward the presence 
+%     directly to the application or a process.
+%@end
 forward(Presence) ->
     case ecomponent:get_presence_processor() of
         undefined -> 
@@ -43,7 +47,9 @@ forward(Presence) ->
     end.
 
 -spec forward_response( Presence::#presence{} ) -> ok.
-
+%@doc Forward the presence as response. If the type was 'error' this will be
+%     forwarded to the correct application or process, or dropped.
+%@end
 forward_response(#presence{xmlel=Xmlel}=Presence) ->
     ID = exmpp_stanza:get_id(Xmlel),
     case ecomponent:get_processor(ID) of

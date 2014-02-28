@@ -32,12 +32,16 @@
 ]).
 
 -spec is_active(ID::atom()) -> boolean().
-
+%@doc Add an ID to the active list of connections. If the connection is
+%     available in the other lists (passive or down) is removed from these
+%     too.
+%@end
 is_active(ID) ->
     gen_server:call(?MODULE, {is_active, ID}).
 
 -spec send(Info::exmpp_xml:xmlel()) -> ok.
-
+%@doc Select a connection and send the stanza.
+%@end
 send(Info) ->
     ToBin = case exmpp_stanza:get_recipient(Info) of 
         undefined -> 
@@ -49,7 +53,12 @@ send(Info) ->
     send(Info, timem:remove({ID,ToBin})).
 
 -spec send(Info::exmpp_xml:xmlel(), ID::atom()) -> ok.
-
+%@doc Send the stanza to the specific connection. If the connection is not
+%     available the stanza will be sent to the first available connection
+%     in the active pool. If the active pool is empty, try to send the
+%     stanza to a passive connection. And finally if this is impossible,
+%     waits a moment (2000ms) and try again.
+%@end
 send(Info, ID) ->
     case ID =/= undefined andalso is_active(ID) of 
         true ->
@@ -73,21 +82,39 @@ send(Info, ID) ->
             end
     end.
 
+-spec start_link(JID::ecomponent:jid(), Conf::proplists:proplist()) ->
+    {ok,pid()} | ignore | {error,{already_started,pid()}} | {error, term()}.
+%@doc Starts the connection. The params needed to start the connection are a JID
+%     in string format and a proplists of configurations with server or node
+%     keys available inside, and others configurations more.
+%@end
 start_link(JID, Conf) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [JID, Conf], []).
 
 
 -spec stop() -> ok.
-
+%@doc Stops the connection.
 stop() ->
     gen_server:call(?MODULE, stop).
 
+-spec active(ID :: atom()) -> {active, atom()}.
+%@doc Sets the connection active. This function will be used for activate
+%     the connections.
+%@end
 active(ID) ->
     ?MODULE ! {active, ID}.
 
+-spec passive(ID :: atom()) -> {passive, atom()}.
+%@doc Sets the connection passive. This function will be used for activate
+%     as passive a connection.
+%@end
 passive(ID) ->
     ?MODULE ! {passive, ID}.
 
+-spec down(ID :: atom()) -> {down, atom()}.
+%@doc Sets the connection as down. This function will be used to report a
+%     down from the worker connection.
+%@end
 down(ID) ->
     ?MODULE ! {down, ID}.
 
@@ -95,6 +122,7 @@ down(ID) ->
 %% gen_server callbacks
 %%====================================================================
 
+%@hidden
 init([JID, Conf]) ->
     case proplists:get_value(servers, Conf) of 
         undefined ->
@@ -113,7 +141,7 @@ init([JID, Conf]) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_info({active, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
     {noreply, State#state{active=Pools ++ [X], passive=Passive -- [X], down=Down -- [X]}};
 
@@ -131,7 +159,7 @@ handle_info(Record, State) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_cast(_Msg, State) ->
     lager:info("Received: ~p~n", [_Msg]), 
     {noreply, State}.
@@ -144,7 +172,7 @@ handle_cast(_Msg, State) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_call(stop, _From, #state{active=Pools, down=Down}=State) ->
     [ ecomponent_con_worker:stop(Pool) || Pool <- Pools ],
     [ ecomponent_con_worker:stop(Pool) || Pool <- Down ],
@@ -165,14 +193,14 @@ handle_call(Info, _From, State) ->
 
 
 -spec terminate(Reason::any(), State::#state{}) -> ok.
-
+%@hidden
 terminate(_Reason, _State) ->
     lager:info("terminated connection.", []),
     ok.
 
 -spec code_change(OldVsn::string(), State::#state{}, Extra::any()) ->
     {ok, State::#state{}}.
-
+%@hidden
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -182,7 +210,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec init_worker(Seq::pos_integer(), JID::binary(), 
     {ID::atom(), SrvConf::proplists:proplist()}) -> ok.
-
+%@hidden
 init_worker(0, _JID, {_ID, _SrvConf}) ->
     ok;
 

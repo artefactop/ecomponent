@@ -1,3 +1,4 @@
+%@hidden
 -module(ecomponent_con_sup).
 
 -behaviour(supervisor).

@@ -10,7 +10,7 @@
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#pre_process_iq-7">pre_process_iq/7</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#pre_process_iq-7">pre_process_iq/7</a></td><td>Pre-process the IQ stanza.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -29,4 +29,5 @@ pre_process_iq(Type::undefined | string(), NS::atom(), IQ::term(), From::<a href
 <br></br>
 
 
-
+Pre-process the IQ stanza. This process get more information from
+the stanza and then send in a params record to the process_iq/1.

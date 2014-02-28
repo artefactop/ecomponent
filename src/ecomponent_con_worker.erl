@@ -30,12 +30,17 @@
     code_change/3
 ]).
 
+-spec start_link(ID::atom(), JID::ecomponent:jid(), Conf::proplists:proplist()) ->
+    {ok,pid()} | ignore | {error,{already_started,pid()}} | {error, term()}.
+%@doc Starts an individual connection. The connection can be to a server or
+%     another node in the cluster.
+%@end
 start_link(ID, JID, Conf) ->
     gen_server:start_link({local, ID}, ?MODULE, [ID, JID, Conf], []).
 
-
 -spec stop(ID::atom()) -> ok.
-
+%@doc Stops an individual connection.
+%@end
 stop(ID) ->
     gen_server:call(ID, stop).
 
@@ -43,6 +48,7 @@ stop(ID) ->
 %% gen_server callbacks
 %%====================================================================
 
+%@hidden
 init([ID, JIDdefault, Conf]) ->
     Pass = proplists:get_value(pass, Conf),
     Server = proplists:get_value(server, Conf),
@@ -74,7 +80,7 @@ init([ID, JIDdefault, Conf]) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
     timem:insert({ID, ToBin}, State#state.id),
@@ -161,7 +167,7 @@ handle_info(Record, State) ->
     {noreply, State::#state{}} |
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_cast(_Msg, State) ->
     lager:info("Received: ~p~n", [_Msg]), 
     {noreply, State}.
@@ -174,7 +180,7 @@ handle_cast(_Msg, State) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
-
+%@hidden
 handle_call(stop, _From, #state{xmppCom=XmppCom}=State) ->
     lager:info("Component Stopped.~n",[]),
     exmpp_component:stop(XmppCom),
@@ -186,14 +192,14 @@ handle_call(Info, _From, State) ->
 
 
 -spec terminate(Reason::any(), State::#state{}) -> ok.
-
+%@hidden
 terminate(_Reason, _State) ->
     lager:info("terminated connection.", []),
     ok.
 
 -spec code_change(OldVsn::string(), State::#state{}, Extra::any()) ->
     {ok, State::#state{}}.
-
+%@hidden
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -202,12 +208,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 -spec make_connection(JID::string(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
-
+%@hidden
 make_connection(JID, Pass, Server, Port) -> 
     make_connection(JID, Pass, Server, Port, 20).
     
 -spec make_connection(JID::ecomponent:jid(), Pass::string(), Server::string(), Port::integer(), Tries::integer()) -> {string(), pid()}.    
-
+%@hidden
 make_connection(JID, Pass, Server, Port, 0) -> 
     make_connection(JID, Pass, Server, Port);
 make_connection(JID, Pass, Server, Port, Tries) ->
@@ -227,14 +233,14 @@ make_connection(JID, Pass, Server, Port, Tries) ->
     end.
 
 -spec setup_exmpp_component(XmppCom::pid(), JID::ecomponent:jid(), Pass::string(), Server::string(), Port::integer()) -> string().
-
+%@hidden
 setup_exmpp_component(XmppCom, JID, Pass, Server, Port)->
     exmpp_component:auth(XmppCom, JID, Pass),
     exmpp_component:connect(XmppCom, Server, Port),
     exmpp_component:handshake(XmppCom).
 
 -spec clean_exit_normal() -> ok.
-
+%@hidden
 clean_exit_normal() ->
     receive 
         {_Ref, normal} -> ok

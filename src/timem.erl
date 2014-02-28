@@ -13,7 +13,9 @@
 -type timem() :: {K::binary(), V::term()}.
 
 -spec insert(K::binary(), V::term()) -> boolean().
-    
+%@doc Insert an element in the database with a timestamp. This information
+%     will be useful to do the expiration or resend.
+%@end
 insert(K, V) ->
     case mnesia:transaction(fun() ->
         mnesia:write(#timem{id=K, packet=V, timestamp=tm(os:timestamp())})
@@ -23,7 +25,8 @@ insert(K, V) ->
     end.
 
 -spec remove(K::binary()) -> timem() | undefined.
-
+%@doc Remove an element from the database.
+%@end
 remove(K) ->
     case mnesia:transaction(fun() ->
         case mnesia:read({timem, K}) of
@@ -39,7 +42,8 @@ remove(K) ->
     end.
 
 -spec expired(D::integer()) -> [binary()].
-
+%@doc Request all the expired elements.
+%@end
 expired(D) ->
     T = tm(os:timestamp()) - D*1000000,
     {atomic, Res} = mnesia:transaction(fun() ->
@@ -49,7 +53,8 @@ expired(D) ->
     Res.
 
 -spec remove_expired(D::integer()) -> [timem()].
-
+%@doc Request and remove all the expired elements.
+%@end
 remove_expired(D) ->
     T = tm(os:timestamp()) - D*1000000,
     {atomic, Res} = mnesia:transaction(fun() ->
@@ -61,5 +66,5 @@ remove_expired(D) ->
     Res.
 
 -spec tm( T::erlang:timestamp() ) -> integer().
-
+%@hidden
 tm({M, S, Mc}) -> M*1000000000000 + S*1000000 + Mc.

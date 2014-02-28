@@ -29,45 +29,64 @@
 %%====================================================================
 
 -spec start_link() -> {ok, Pid::pid()} | {error, Reason::any()}.
-
+%@doc Starts the ecomponent main server.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 -spec stop() -> ok.
-
+%@doc Stops the ecomponent main server.
 stop() ->
     gen_server:call(?MODULE, stop).
 
 -spec send(Packet::term(), App::atom()) -> ok.
-
+%@doc Send an IQ stanza. The first param is a Packet in exmpp_xml format. 
+%     The second param is the app where the IQ is linked, this could be an
+%     atom or a PID.
+%@end
 send(Packet, App) ->
     Payload = exmpp_iq:get_payload(Packet),
     NS = exmpp_xml:get_ns_as_atom(Payload),
     send(Packet, NS, App, true).
 
 -spec send(Packet::term(), NS::atom(), App::atom()) -> ok.
-
+%@doc Send an IQ stanza and set the return path. The same as send/2 but adds
+%     a middle param, the NS (namespace) referer to the name space of the 
+%     first element inside the iq stanza.
+%@end
 send(Packet, NS, App) ->
     send(Packet, NS, App, true).
 
 -spec send(Packet::term(), NS::atom(), App::atom(), Reply::boolean()) -> ok.
-
+%@doc Send an IQ stanza, set the return path and if there are reply or not.
+%     This function is the same as send/3 but adds a new param. The fourth
+%     param is for enable or disable the waiting for the reply.
+%@end
 send(Packet, NS, App, Reply) ->
     send(Packet, NS, App, Reply, undefined).
 
 -spec send(Packet::term(), NS::atom(), App::atom(), Reply::boolean(), ServerID::atom()) -> ok.
-
+%@doc Send an IQ stanza with return path, reply and the server where to send.
+%     This function adds a new param. The fifth param is the name of the
+%     connection where the stanza should be sent.
+%@end
 send(Packet, NS, App, Reply, ServerID) ->
     ?MODULE ! {send, Packet, NS, App, Reply, ServerID},
     ok.
 
 -spec sync_send(Packet::term(), NS::atom()) -> #params{} | {error, timeout}.
-
+%@doc Send a packet and wait for the reply.
+%     Send a packet as do send/3, but the return path is the current process
+%     for get the response. The first param is a Packet in the exmpp_xml format.
+%     The second param is the namespace (NS).
+%@end
 sync_send(Packet, NS) ->
     sync_send(Packet, NS, undefined).
 
 -spec sync_send(Packet::term(), NS::atom(), ServerID::atom()) -> #params{} | {error, timeout}.
-
+%@doc Send a packet and wait for the reply using a specific server to send.
+%     As in send/3, but the return path is the current process for get the
+%     response.
+%@end 
 sync_send(Packet, NS, ServerID) ->
     send(Packet, NS, self(), true, ServerID),
     receive 
@@ -78,23 +97,31 @@ sync_send(Packet, NS, ServerID) ->
     end.
 
 -spec send_message(Packet::term()) -> ok.
-
+%@doc Send a message stanza. The Packet should be in exmpp_xml format.
+%@end
 send_message(Packet) ->
     send_message(Packet, undefined).
 
 -spec send_message(Packet::term(), ServerID::atom()) -> ok.
-
+%@doc Send a message stanza. The Packet should be in exmpp_xml format.
+%     This function adds the possibility to select the server for send
+%     the stanza.
+%@end
 send_message(Packet, ServerID) ->
     ?MODULE ! {send_message, Packet, ServerID},
     ok.
 
 -spec send_presence(Packet::term()) -> ok.
-
+%@doc Send a presence stanza. The Packet should be in exmpp_xml format.
+%@end
 send_presence(Packet) ->
     send_presence(Packet, undefined).
 
 -spec send_presence(Packet::term(), ServerID::atom()) -> ok.
-
+%@doc Send a presence stanza. The Packet should be in exmpp_xml format.
+%     This function adds the possibility to select the server for send
+%     the stanza.
+%@end
 send_presence(Packet, ServerID) ->
     ?MODULE ! {send_presence, Packet, ServerID},
     ok.
@@ -368,13 +395,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 -spec reset_countdown(State::#state{}) -> #state{}.
-
+%@hidden
 reset_countdown(State) ->
     {A,B,_} = os:timestamp(),
     State#state{timeout=(A*1000000+B)}.
 
 -spec get_countdown(Begin::integer()) -> integer().
-
+%@hidden
 get_countdown(#state{resend=false}) ->
     ?REQUEST_TIMEOUT * 1000;
 get_countdown(#state{timeout=undefined}) ->
@@ -389,7 +416,7 @@ get_countdown(#state{timeout=Begin,requestTimeout=RT}) ->
     end.
 
 -spec configure() -> {ok, #state{}}.
-
+%@hidden
 configure() ->
     Conf = application:get_all_env(ecomponent),
     Facility = proplists:get_value(syslog_facility, Conf, local7),
@@ -430,12 +457,13 @@ configure() ->
     {ok, reset_countdown(State), get_countdown(State)}.
 
 -spec gen_id() -> binary().
-
+%@doc generate an ID based on UUID v4.
+%@end
 gen_id() ->
     list_to_binary(uuid:to_string(uuid:uuid4())).
 
 -spec expired_stanzas(Resend::boolean(), Timeout::integer()) -> ok.
-
+%@hidden
 expired_stanzas(false, Timeout) ->
     timem:remove_expired(Timeout),
     ok;
@@ -445,19 +473,19 @@ expired_stanzas(true, Timeout) ->
     ok.
 
 -spec resend(N :: #matching{}) -> ok.
-
+%@hidden
 resend(N) when is_record(N, matching) ->
     ?MODULE ! {resend, N},
     ok.
 
 -spec init_syslog(Facility::(atom() | integer()), Name::string()) -> ok | {error, Reason::any()}.
-
+%@hidden
 init_syslog(Facility, Name) ->
     lager:info("Syslog configured: facility=~p, name=~p",[Facility, Name]),
     syslog:open(Name, [cons, perror, pid], Facility).
 
 -spec save_id(Id::binary(), NS::string(), Packet::term(), App::atom()) -> #matching{} | ok.
-
+%@hidden
 save_id(_Id, _NS, _Packet, ecomponent) ->
     ok;
 
@@ -466,7 +494,7 @@ save_id(Id, NS, Packet, App) ->
     save_id(N).
 
 -spec save_id(N::#matching{}) -> #matching{} | ok.
-    
+%@hidden
 save_id(#matching{id=Id, processor=App}=N) ->
     case timem:insert(Id, N) of
         true ->
@@ -476,7 +504,7 @@ save_id(#matching{id=Id, processor=App}=N) ->
     end.
 
 -spec get_processor(Id::binary()) -> #matching{} | undefined.
-
+%@hidden
 get_processor(Id) ->
     case timem:remove(Id) of
         {_, N} when is_record(N, matching) -> 
@@ -487,7 +515,7 @@ get_processor(Id) ->
     end.
 
 -spec prepare_processors(P::list(processor())) -> ok.
-
+%@hidden
 prepare_processors(P) ->
     case ets:info(?NS_PROCESSOR) of
         undefined ->
@@ -502,7 +530,7 @@ prepare_processors(P) ->
     ok.
 
 -spec get_processor_by_ns(NS::atom()) -> [] | mod_processor() | app_processor().
-
+%@hidden
 get_processor_by_ns(NS) ->
     case ets:lookup(?NS_PROCESSOR, NS) of
         [{_, {_T, _P}=Result}] -> Result;
@@ -514,7 +542,7 @@ get_processor_by_ns(NS) ->
     end.
 
 -spec get_message_processor() -> undefined | mod_processor() | app_processor().
-
+%@hidden
 get_message_processor() ->
     PID = whereis(?MODULE),
     case erlang:is_pid(PID) of
@@ -525,7 +553,7 @@ get_message_processor() ->
     end.
 
 -spec get_presence_processor() -> undefined | mod_processor() | app_processor().
-
+%@hidden
 get_presence_processor() ->
     PID = whereis(?MODULE),
     case erlang:is_pid(PID) of
@@ -536,21 +564,24 @@ get_presence_processor() ->
     end.
 
 -spec prepare_id(Data::string()) -> string().
-
+%@doc Ensure the string used as ID in stanza is XML valid.
+%@end
 prepare_id([]) -> [];
 prepare_id([$<|T]) -> [$x|prepare_id(T)];
 prepare_id([$>|T]) -> [$X|prepare_id(T)];
 prepare_id([H|T]) -> [H|prepare_id(T)].
 
 -spec unprepare_id(Data::string()) -> string().
-
+%@doc Undo de action of prepare_id/1.
+%@end
 unprepare_id([]) -> [];
 unprepare_id([$x|T]) -> [$<|unprepare_id(T)];
 unprepare_id([$X|T]) -> [$>|unprepare_id(T)];
 unprepare_id([H|T]) -> [H|unprepare_id(T)].
 
 -spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().
-
+%@doc Check if is allowed the request (based on ACL lists).
+%@end
 is_allowed(Type, NS, {Node,Domain,Res}, State) when is_list(Domain) ->
     is_allowed(Type, NS, {Node,list_to_binary(Domain),Res}, State);
 is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
@@ -559,7 +590,7 @@ is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
     is_allowed(NS, Domain, Ag).
 
 -spec is_allowed( NS::atom(), Domain::string(), PList::list(binary()) ) -> boolean().
-
+%@hidden
 is_allowed(NS, Domain, PList) ->
     case proplists:get_value(NS, PList) of
         undefined ->
@@ -568,11 +599,12 @@ is_allowed(NS, Domain, PList) ->
             lists:member(Domain, List)
     end.
 
+%@hidden
 -type levels() :: emerg | alert | crit | err | warning | notice | info | debug.
 
 -spec syslog(Level::levels(), Message::string()) -> ok.
-
-%% Level: emerg, alert, crit, err, warning, notice, info, debug
+%@doc Send log info to syslog.
+%@end
 syslog(Level, Message) when is_binary(Message) ->
     syslog(Level, erlang:binary_to_list(Message));
 syslog(Level, Message) when is_list(Message) ->

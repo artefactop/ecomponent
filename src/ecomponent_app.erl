@@ -1,3 +1,4 @@
+%@hidden
 -module(ecomponent_app).
 
 -behaviour(application).

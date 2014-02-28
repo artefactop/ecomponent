@@ -15,7 +15,9 @@
     Features::[binary()], 
     Info::proplists:proplists(),
     ServerID::atom()) -> ok.
-
+%@doc Pre-process the IQ stanza. This process get more information from
+%     the stanza and then send in a params record to the process_iq/1.
+%@end
 pre_process_iq(Type, IQ, NS, From, Features, Info, ServerID) ->
     Payload = exmpp_iq:get_payload(IQ),
     To = exmpp_jid:to_lower(exmpp_stanza:get_recipient(IQ)),
@@ -25,7 +27,10 @@ pre_process_iq(Type, IQ, NS, From, Features, Info, ServerID) ->
         info=Info, server=ServerID}).
 
 -spec process_iq( Params::#params{} ) -> ok.
-
+%@doc Do the basic process IQ. If the stanza is a ping or disco#info,
+%     the stanza should be attendee instead of passing to the module
+%     configured in the configfile.
+%@end
 process_iq(#params{type="get", iq=IQ, ns=?NS_PING}) ->
     Result = exmpp_iq:result(IQ),
     ecomponent:send(Result, ?NS_PING, undefined);
@@ -84,7 +89,8 @@ process_iq(P) ->
     lager:info("Unknown Request: ~p~n", [P]).
 
 -spec forward_ns( Params::#params{} ) -> ok.
-
+%@doc Do the forward based on namespace.
+%@end
 forward_ns(#params{ns=NS}=Params) ->
     case ecomponent:get_processor_by_ns(NS) of
         undefined -> 
@@ -124,7 +130,10 @@ forward_ns(#params{ns=NS}=Params) ->
     end.
 
 -spec forward_response( Params::#params{} ) -> ok.
-
+%@doc Forward a response based on return path. If the IQ stanza is error or 
+%     result type the system search based on ID to send the response to the
+%     correct application or process.
+%@end
 forward_response(#params{iq=IQ}=Params) ->
     ID = exmpp_stanza:get_id(IQ),
     case ecomponent:get_processor(ID) of

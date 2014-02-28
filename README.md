@@ -24,16 +24,11 @@ For more information:
 
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent.md" class="module">ecomponent</a></td></tr>
-<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_app.md" class="module">ecomponent_app</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_con.md" class="module">ecomponent_con</a></td></tr>
-<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_con_sup.md" class="module">ecomponent_con_sup</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_con_worker.md" class="module">ecomponent_con_worker</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_func_test.md" class="module">ecomponent_func_test</a></td></tr>
-<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_mnesia.md" class="module">ecomponent_mnesia</a></td></tr>
-<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/ecomponent_sup.md" class="module">ecomponent_sup</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/iq_handler.md" class="module">iq_handler</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/message_handler.md" class="module">message_handler</a></td></tr>
-<tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/metrics.md" class="module">metrics</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/mod_monitor.md" class="module">mod_monitor</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/presence_handler.md" class="module">presence_handler</a></td></tr>
 <tr><td><a href="http://github.com/altenwald/ecomponent/blob/simple/doc/processor.md" class="module">processor</a></td></tr>
