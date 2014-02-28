@@ -48,13 +48,8 @@
                 <query xmlns='http://jabber.org/protocol/disco#info'/>
             </iq>
         </step>
-        <step name="timem gives information" type="code"><![CDATA[
-            receive
-                {<<"test_bot">>, <<"bob@localhost">>} -> ok;
-                Other -> throw(Other)
-            after 1000 ->
-                throw("TIMEOUT!!!")
-            end
+        <step name="timem gives information" type="receive"><![CDATA[
+            {<<"test_bot">>, <<"bob@localhost">>}
         ]]></step>
         <step name="receive from server_two" type="receive">
             <iq xmlns='jabber:client'
