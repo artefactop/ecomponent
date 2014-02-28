@@ -100,9 +100,10 @@ init([JID, Conf]) ->
         undefined ->
             spawn(fun() -> ecomponent_con_sup:start_child(default, JID, Conf) end);
         SrvInfo ->
-            lists:foreach(fun({ID, SrvConf}) ->
-                spawn(fun() -> 
-                    ecomponent_con_sup:start_child(ID, JID, SrvConf)
+            lists:foreach(fun({_ID, SrvConf}=SrvTerm) ->
+                spawn(fun() ->
+                    PoolNum = proplists:get_value(poolsize, SrvConf, 1),
+                    init_worker(PoolNum, JID, SrvTerm)
                 end)
             end, SrvInfo)
     end,
@@ -179,3 +180,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-spec init_worker(Seq::pos_integer(), JID::binary(), 
+    {ID::atom(), SrvConf::proplists:proplist()}) -> ok.
+
+init_worker(0, _JID, {_ID, _SrvConf}) ->
+    ok;
+
+init_worker(Seq, JID, {ID, SrvConf}) when is_integer(Seq) ->
+    Name = list_to_atom(
+        "conn_" ++
+        atom_to_list(ID) ++ "_" ++ 
+        integer_to_list(Seq)),
+    ecomponent_con_sup:start_child(Name, JID, SrvConf),
+    init_worker(Seq-1, JID, {ID, SrvConf}).

@@ -164,6 +164,21 @@ The valid values for `type` option can be `active` (by default) and `passive` fo
 
 When `ecomponent:send`, `ecomponent:send_message` or `ecomponent:send_presence` is used, the message goes to the connection indicated, but if the connection is down or is not indicated, the system tries with another one in a round-robin way. First with `active` connections and if there aren't `active` connections available, then goes to `passive` connections.
 
+To avoid bottlenecks, you can connect to XMPP server with a pool of connections as follow:
+
+```erlang
+{servers, [
+    {master, [
+        {server, "localhost"},
+        {port, 5252},
+        {secret, "mypass"},
+        {poolsize, 10}
+    ]}
+]}
+```
+
+This configuration makes 10 connections to `localhost:5252` and adds to the round-robin params to send stanzas.
+
 ##throttle configuration
 
 If you want to avoid a collapse for your component, you can configure a throttle with the follow params inside the `ecomponent` main tag:
