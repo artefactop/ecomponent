@@ -127,7 +127,7 @@ init(_) ->
     ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
-    {ok, _} = ecomponent_con_worker:start_link(default, "ecomponent.test", Conf).
+    {ok, _} = ecomponent_con_worker:start_link({default,default}, "ecomponent.test", Conf).
 
 -define(finish(), begin
     meck:unload(application),

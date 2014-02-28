@@ -15,7 +15,8 @@
     pass :: string(),
     server :: string(),
     port :: integer(),
-    node :: atom()
+    node :: atom(),
+    group :: atom()
 }).
 
 %% gen_server callbacks
@@ -30,13 +31,13 @@
     code_change/3
 ]).
 
--spec start_link(ID::atom(), JID::ecomponent:jid(), Conf::proplists:proplist()) ->
+-spec start_link(ID::{atom(),atom()}, JID::ecomponent:jid(), Conf::proplists:proplist()) ->
     {ok,pid()} | ignore | {error,{already_started,pid()}} | {error, term()}.
 %@doc Starts an individual connection. The connection can be to a server or
 %     another node in the cluster.
 %@end
-start_link(ID, JID, Conf) ->
-    gen_server:start_link({local, ID}, ?MODULE, [ID, JID, Conf], []).
+start_link({ID,Group}, JID, Conf) ->
+    gen_server:start_link({local, ID}, ?MODULE, [{ID,Group}, JID, Conf], []).
 
 -spec stop(ID::atom()) -> ok.
 %@doc Stops an individual connection.
@@ -49,7 +50,7 @@ stop(ID) ->
 %%====================================================================
 
 %@hidden
-init([ID, JIDdefault, Conf]) ->
+init([{ID, Group}, JIDdefault, Conf]) ->
     Pass = proplists:get_value(pass, Conf),
     Server = proplists:get_value(server, Conf),
     Port = proplists:get_value(port, Conf),
@@ -60,7 +61,7 @@ init([ID, JIDdefault, Conf]) ->
             Node = proplists:get_value(node, Conf),
             erlang:monitor_node(Node, true),
             ecomponent_con:F(ID),
-            {ok, #state{type = node, node = Node}};
+            {ok, #state{type = node, node = Node, group=Group}};
         _ ->
             {_, XmppCom} = make_connection(JID, Pass, Server, Port),
             ecomponent_con:F(ID),
@@ -71,7 +72,8 @@ init([ID, JIDdefault, Conf]) ->
                 jid = JID,
                 pass = Pass,
                 server = Server,
-                port = Port
+                port = Port,
+                group = Group
             }}
     end.
 
@@ -83,11 +85,11 @@ init([ID, JIDdefault, Conf]) ->
 %@hidden
 handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
-    timem:insert({ID, ToBin}, State#state.id),
-    ecomponent ! {ReceivedPacket, State#state.id},
+    timem:insert({ID, ToBin}, State#state.group),
+    ecomponent ! {ReceivedPacket, State#state.group},
     {noreply, State};
 
-handle_info({send, #xmlel{name='iq'}=Packet}, #state{type=node, jid=JID, id=ID, node=Node}=State) ->
+handle_info({send, #xmlel{name='iq'}=Packet}, #state{type=node, jid=JID, group=ID, node=Node}=State) ->
     From = exmpp_stanza:get_sender(Packet),
     NewPacket = case From of
         undefined ->
@@ -98,7 +100,7 @@ handle_info({send, #xmlel{name='iq'}=Packet}, #state{type=node, jid=JID, id=ID, 
     rpc:cast(Node, ecomponent, send, [NewPacket, 'from_another_node', undefined, false, ID]),
     {noreply, State};
 
-handle_info({send, #xmlel{name='message'}=Packet}, #state{type=node, jid=JID, id=ID, node=Node}=State) ->
+handle_info({send, #xmlel{name='message'}=Packet}, #state{type=node, jid=JID, group=ID, node=Node}=State) ->
     From = exmpp_stanza:get_sender(Packet),
     NewPacket = case From of
         undefined ->
@@ -109,7 +111,7 @@ handle_info({send, #xmlel{name='message'}=Packet}, #state{type=node, jid=JID, id
     rpc:cast(Node, ecomponent, send_message, [NewPacket, ID]),
     {noreply, State};
 
-handle_info({send, #xmlel{name='presence'}=Packet}, #state{type=node, jid=JID, id=ID, node=Node}=State) ->
+handle_info({send, #xmlel{name='presence'}=Packet}, #state{type=node, jid=JID, group=ID, node=Node}=State) ->
     From = exmpp_stanza:get_sender(Packet),
     NewPacket = case From of
         undefined ->

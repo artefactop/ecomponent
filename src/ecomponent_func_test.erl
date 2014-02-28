@@ -75,7 +75,7 @@ run(Test) ->
         {ok, _} = ecomponent:start_link(),
         JID = proplists:get_value(jid, Config, "ecomponent.bot"),
         lists:foreach(fun({Name, AtomicServerConf}) ->
-            {ok, _} = ecomponent_con_worker:start_link(Name, JID, AtomicServerConf)
+            {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID, AtomicServerConf)
         end, proplists:get_value(servers, Config, [])),
 
         (Functional#functional.start)(),

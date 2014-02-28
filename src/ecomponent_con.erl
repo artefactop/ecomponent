@@ -8,7 +8,8 @@
 -record(state, {
     active  = [] :: [atom()],
     passive = [] :: [atom()],
-    down    = [] :: [atom()]
+    down    = [] :: [atom()],
+    groups  = [] :: [{atom(), [atom()]}]
 }).
 
 -define(TIME_TO_SLEEP, 2000).
@@ -24,10 +25,13 @@
     terminate/2,
     code_change/3,
     is_active/1,
+    resolve_id/1,
     send/1,
     send/2,
     active/1,
+    active/2,
     passive/1,
+    passive/2,
     down/1
 ]).
 
@@ -38,6 +42,14 @@
 %@end
 is_active(ID) ->
     gen_server:call(?MODULE, {is_active, ID}).
+
+-spec resolve_id(ID::atom()) -> atom().
+%@doc Resolve from group ID. If the ID passed as param is a group, this
+%     function returns an element inside the group in round-robin. Else,
+%     you get the same atom.
+%@end
+resolve_id(ID) ->
+    gen_server:call(?MODULE, {resolve_id, ID}).
 
 -spec send(Info::exmpp_xml:xmlel()) -> ok.
 %@doc Select a connection and send the stanza.
@@ -59,7 +71,8 @@ send(Info) ->
 %     stanza to a passive connection. And finally if this is impossible,
 %     waits a moment (2000ms) and try again.
 %@end
-send(Info, ID) ->
+send(Info, RawID) ->
+    ID = resolve_id(RawID),
     case ID =/= undefined andalso is_active(ID) of 
         true ->
             lager:debug("Connecting to (fix) pool: ~p~n", [ID]),
@@ -104,12 +117,30 @@ stop() ->
 active(ID) ->
     ?MODULE ! {active, ID}.
 
+-spec active(ID :: atom(), Group :: atom()) -> {active, atom()}.
+%@doc Sets the connection active. This function will be used for activate
+%     the connections. Adds a new parameter named Group for use only this
+%     name instead of the specific (or generated) names in case of pool
+%     is used.
+%@end
+active(ID, Group) ->
+    ?MODULE ! {active, ID, Group}.
+
 -spec passive(ID :: atom()) -> {passive, atom()}.
 %@doc Sets the connection passive. This function will be used for activate
 %     as passive a connection.
 %@end
 passive(ID) ->
     ?MODULE ! {passive, ID}.
+
+-spec passive(ID :: atom(), Group :: atom()) -> {passive, atom()}.
+%@doc Sets the connection passive. This function will be used for activate
+%     as passive a connection. Adds a new parameter named Group for use only 
+%     this name instead of the specific (or generated) names in case of pool
+%     is used.
+%@end
+passive(ID, Group) ->
+    ?MODULE ! {passive, ID, Group}.
 
 -spec down(ID :: atom()) -> {down, atom()}.
 %@doc Sets the connection as down. This function will be used to report a
@@ -142,11 +173,35 @@ init([JID, Conf]) ->
     {noreply, State::#state{}, hibernate | infinity | non_neg_integer()} |
     {stop, Reason::any(), State::#state{}}.
 %@hidden
-handle_info({active, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
-    {noreply, State#state{active=Pools ++ [X], passive=Passive -- [X], down=Down -- [X]}};
+handle_info({active, X}, #state{
+        active=Pools, passive=Passive, down=Down}=State) ->
+    {noreply, State#state{
+        active=Pools ++ [X], 
+        passive=Passive -- [X], 
+        down=Down -- [X]}};
 
-handle_info({passive, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
-    {noreply, State#state{active=Pools -- [X], passive=Passive ++ [X], down=Down -- [X]}};
+handle_info({active, X, Group}, #state{
+        active=Pools, passive=Passive, down=Down, groups=Groups}=State) ->
+    {noreply, State#state{
+        active=Pools ++ [X], 
+        passive=Passive -- [X], 
+        down=Down -- [X],
+        groups=add_to_group(X, Group, Groups)}};
+
+handle_info({passive, X}, #state{
+        active=Pools, passive=Passive, down=Down}=State) ->
+    {noreply, State#state{
+        active=Pools -- [X], 
+        passive=Passive ++ [X], 
+        down=Down -- [X]}};
+
+handle_info({passive, X, Group}, #state{
+        active=Pools, passive=Passive, down=Down, groups=Groups}=State) ->
+    {noreply, State#state{
+        active=Pools -- [X], 
+        passive=Passive ++ [X], 
+        down=Down -- [X],
+        groups=add_to_group(X, Group, Groups)}};
 
 handle_info({down, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
     {noreply, State#state{active=Pools -- [X], passive=Passive -- [X], down=Down ++ [X]}};
@@ -187,6 +242,16 @@ handle_call(get_pool, _From, #state{active=[], passive=[Pool|Pools]}=State) ->
 handle_call(get_pool, _From, #state{active=[Pool|Pools]}=State) ->
     {reply, Pool, State#state{active=Pools ++ [Pool]}};
 
+handle_call({resolve_id, Group}, _From, #state{groups=Groups}=State) ->
+    case proplists:get_value(Group, Groups, []) of
+    [] -> 
+        {reply, Group, State};
+    [ID|Elements] ->
+        {reply, ID, State#state{groups = Groups
+            -- [{Group, [ID|Elements]}]
+            ++ [{Group, Elements ++ [ID]}]}}
+    end;
+
 handle_call(Info, _From, State) ->
     lager:info("Received Call: ~p~n", [Info]),
     {reply, ok, State}.
@@ -219,5 +284,23 @@ init_worker(Seq, JID, {ID, SrvConf}) when is_integer(Seq) ->
         "conn_" ++
         atom_to_list(ID) ++ "_" ++ 
         integer_to_list(Seq)),
-    ecomponent_con_sup:start_child(Name, JID, SrvConf),
+    ecomponent_con_sup:start_child({Name,ID}, JID, SrvConf),
     init_worker(Seq-1, JID, {ID, SrvConf}).
+
+-spec add_to_group(Element::atom(), Group::atom(), Groups::[{atom(), [atom()]}]) ->
+    [{atom(), [atom()]}].
+%@hidden
+add_to_group(Element, Group, Groups) ->
+    case proplists:get_value(Group, Groups) of
+    undefined -> 
+        Groups ++ [{Group, [Element]}];
+    Elements ->
+        case lists:member(Element, Elements) of
+        false -> 
+            Groups 
+                -- [{Group, Elements}] 
+                ++ [{Group, [Element|Elements]}];
+        true -> 
+            Groups
+        end
+    end.
