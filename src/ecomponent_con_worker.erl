@@ -141,7 +141,7 @@ handle_info({down, Node}, #state{node=Node, conn_type=F}=State) ->
     case net_kernel:connect_node(Node) of
     true ->
         lager:info("Reconnected ~p.~n", [Node]),
-        ecomponent_con:F(State#state.id);
+        ecomponent_con:F(State#state.id, State#state.group);
     false ->
         timer:sleep(500)
     end,
@@ -152,7 +152,7 @@ handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected ~s.~n", [Server]),
-    ecomponent_con:F(State#state.id),
+    ecomponent_con:F(State#state.id, State#state.group),
     {noreply, State#state{xmppCom=XmppCom}};
 
 handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass, port=Port, conn_type=F}=State) ->
@@ -160,7 +160,7 @@ handle_info({_,{bad_return_value, _}}, #state{jid=JID, server=Server, pass=Pass,
     ecomponent_con:down(State#state.id),
     {_, XmppCom} = make_connection(JID, Pass, Server, Port),
     lager:info("Reconnected ~s.~n", [Server]),
-    ecomponent_con:F(State#state.id),
+    ecomponent_con:F(State#state.id, State#state.group),
     {noreply, State#state{xmppCom=XmppCom}};
 
 handle_info(Record, State) -> 

@@ -203,8 +203,13 @@ handle_info({passive, X, Group}, #state{
         down=Down -- [X],
         groups=add_to_group(X, Group, Groups)}};
 
-handle_info({down, X}, #state{active=Pools, passive=Passive, down=Down}=State) ->
-    {noreply, State#state{active=Pools -- [X], passive=Passive -- [X], down=Down ++ [X]}};
+handle_info({down, X}, #state{
+        active=Pools, passive=Passive, down=Down, groups=Groups}=State) ->
+    {noreply, State#state{
+        active=Pools -- [X],
+        passive=Passive -- [X], 
+        down=Down ++ [X],
+        groups=remove_from_groups(X, Groups)}};
 
 handle_info(Record, State) -> 
     lager:info("Unknown Info Request: ~p~n", [Record]),
@@ -304,3 +309,11 @@ add_to_group(Element, Group, Groups) ->
             Groups
         end
     end.
+
+-spec remove_from_groups(X :: atom(), Groups::[{atom(), [atom()]}]) ->
+    [{atom(), [atom()]}].
+%@hidden
+remove_from_groups(X, Groups) ->
+    lists:map(fun({Group, Elements}) ->
+        {Group, [ E || E <- Elements, X =/= E ]}
+    end, Groups).
