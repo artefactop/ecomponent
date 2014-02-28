@@ -252,8 +252,8 @@ handle_call({resolve_id, Group}, _From, #state{groups=Groups}=State) ->
     [] -> 
         {reply, Group, State};
     [ID|Elements] ->
-        {reply, ID, State#state{groups = Groups
-            -- [{Group, [ID|Elements]}]
+        {reply, ID, State#state{groups = 
+            proplists:delete(Group, Groups)
             ++ [{Group, Elements ++ [ID]}]}}
     end;
 
@@ -302,8 +302,7 @@ add_to_group(Element, Group, Groups) ->
     Elements ->
         case lists:member(Element, Elements) of
         false -> 
-            Groups 
-                -- [{Group, Elements}] 
+            proplists:delete(Group, Groups)
                 ++ [{Group, [Element|Elements]}];
         true -> 
             Groups
