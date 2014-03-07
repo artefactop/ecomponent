@@ -2,7 +2,36 @@
 
 % required for eunit to work
 -include_lib("eunit/include/eunit.hrl").
--include("../include/ecomponent_internal.hrl").
+-include("ecomponent_internal.hrl").
+
+-record(mockup, {
+    module :: atom(),
+    function :: atom(),
+    code :: function()
+}).
+
+-record(step, {
+    name = <<"noname">> :: binary(),
+    type = 'send' :: 'send' | 'receive',
+    times = 1 :: pos_integer(),
+    timeout = 1000 :: pos_integer(),
+    stanza :: exmpp_xml:xmlel(),
+    idserver = default :: atom()
+}).
+
+-type mockup() :: #mockup{}.
+-type step() :: #step{}.
+
+-record(functional, {
+    mockups = [] :: [mockup()],
+    mock_opts = [] :: [atom()],
+    steps = [] :: [step()],
+    config = [] :: [term()],
+    start = fun() -> ok end :: function(),
+    stop = fun() -> ok end :: function()
+}).
+
+-type functional() :: #functional{}.
 
 -define(run_exmpp(), begin
     case lists:keyfind(exmpp, 1, application:loaded_applications()) of
@@ -13,45 +42,74 @@
     end
 end).
 
--define(meck_lager(), begin
+-define(meck_lager(Verbose), begin
     meck:new(lager),
     meck:expect(lager, dispatch_log, fun(_Severity, _Metadata, _Format, _Args, _Size) ->
-        %?debugFmt(_Format, _Args),
-        ok
+        if 
+            Verbose ->
+                ?debugFmt(_Format, _Args), 
+                ok;
+            true -> ok
+        end
     end),
     meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, _Pid, _Traces, _Format, _Args, _TruncSize) ->
-        %?debugFmt(_Format, _Args),
-        ok
+        if
+            Verbose ->
+                ?debugFmt(_Format, _Args),
+                ok;
+            true -> ok
+        end
     end)
 end).
 
--define(meck_syslog(), begin
+-define(meck_lager(), ?meck_lager(false)).
+
+-define(meck_syslog(Verbose), begin
     meck:new(syslog),
     meck:expect(syslog, open, fun(_Name, _Opts, _Facility) -> ok end),
     meck:expect(syslog, log, fun(_Level, _Message) ->
-        %?debugFmt("~p: ~s~n", [_Level,_Message]),
-        ok
+        if
+            Verbose ->
+                ?debugFmt("~p: ~s~n", [_Level,_Message]),
+                ok;
+            true -> ok
+        end
     end),
     meck:new(ecomponent, [passthrough]),
     meck:expect(ecomponent, syslog, fun(_A,_B) -> 
-        %?debugFmt("~p: ~s~n", [_A,_B]),
-        ok
+        if
+            Verbose ->
+                ?debugFmt("~p: ~s~n", [_A,_B]),
+                ok;
+            true -> ok
+        end
     end)
 end).
 
--define(meck_confetti(Config), begin
-    meck:new(confetti),
-    meck:expect(confetti, fetch, 1, Config) 
+-define(meck_syslog(), ?meck_syslog(false)).
+
+-define(meck_config(Config), begin
+    meck:new(application, [passthrough, unstick]),
+    meck:expect(application, get_all_env, 1, Config),
+    meck:expect(application, get_env, fun(_,Key) ->
+        case proplists:get_value(Key, Config) of
+            undefined -> undefined;
+            Value -> {ok, Value}
+        end
+    end)
 end).
 
--define(meck_component(), begin 
+-define(meck_component(), (fun() ->
     meck:new(exmpp_component),
     meck:expect(exmpp_component, start, fun() -> self() end),
     meck:expect(exmpp_component, stop, fun(_) -> ok end),
     meck:expect(exmpp_component, auth, fun(_Pid, _JID, _Pass) -> ok end),
     meck:expect(exmpp_component, connect, fun(_Pid, _Server, _Port) -> "1234" end),
-    meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end)
-end).
+    meck:expect(exmpp_component, handshake, fun(_Pid) -> ok end),
+
+    meck:new(ecomponent_con_sup),
+    meck:expect(ecomponent_con_sup, start_child, fun(_,_,_) -> ok end)
+end)()).
 
 -define(meck_metrics(), begin 
     meck:new(metrics),

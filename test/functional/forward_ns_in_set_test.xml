@@ -1,0 +1,47 @@
+<functional>
+
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <mockups>
+        <mockup module="dummy" function="process_iq">
+            <code><![CDATA[
+                (#params{iq=IQ}) -> PID ! IQ
+            ]]></code>
+        </mockup>
+    </mockups>
+
+    <steps>
+        <step name="send to dummy process" type="send">
+            <iq xmlns='jabber:client'
+                type='set'
+                from='bob@localhost/pc'
+                to='alice.localhost'
+                id='test_fwns_set'>
+                <data xmlns='urn:itself'/>
+            </iq>
+        </step>
+        <step name="check dummy process receive the stanza" type="receive">
+            <iq xmlns='jabber:client'
+                type='set'
+                from='bob@localhost/pc'
+                to='alice.localhost'
+                id='test_fwns_set'>
+                <data xmlns='urn:itself'/>
+            </iq>
+        </step>
+    </steps>
+
+</functional>

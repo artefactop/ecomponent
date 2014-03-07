@@ -1,3 +1,4 @@
+%@hidden
 -module(ecomponent_app).
 
 -behaviour(application).
@@ -33,7 +34,7 @@ start() ->
     
 -spec start(StartType :: start_type(), StartArgs :: start_args() ) ->
     {ok, Pid::pid()} | {error, Reason::any()}.
-
+%@hidden
 start(_StartType, _StartArgs) ->
     ecomponent_sup:start_link().
 

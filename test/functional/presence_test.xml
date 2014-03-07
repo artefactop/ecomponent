@@ -1,0 +1,44 @@
+<functional>
+
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <mockups>
+        <mockup module="dummy" function="process_presence">
+            <code><![CDATA[
+                (Presence) -> PID ! Presence
+            ]]></code>
+        </mockup>
+    </mockups>
+
+    <stop-code><![CDATA[
+        receive
+            #presence{xmlel=_Xmlel} ->
+                ok;
+            Any -> throw(Any)
+        after 1000 ->
+            throw("TIMEOUT!!!")
+        end
+    ]]></stop-code>
+
+    <steps>
+        <step name="send presence to ecomponent" type="send">
+            <presence xmlns='jabber:client' 
+                      to='alice.localhost' 
+                      id='test_bot'/>
+        </step>
+    </steps>
+
+</functional>

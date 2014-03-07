@@ -1,29 +1,23 @@
 %@hidden
--module(ecomponent_sup).
+-module(ecomponent_con_sup).
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_link/2]).
+-export([start_link/0, start_child/3]).
 
 %% Supervisor callbacks
 -export([init/1]).
-
--define(MAX_RETRIES, 20).
--define(MAX_TIME, 10).
-
-%% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, transient, brutal_kill, Type, [I]}).
 
 %% ===================================================================
 %% API functions
 %% ===================================================================
 
-start_link(MaxR, MaxT) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [MaxR, MaxT]).
-
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+start_child(ID, JID, SrvConf) ->
+    supervisor:start_child(?MODULE, [ID, JID, SrvConf]).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -39,12 +33,11 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, {{one_for_all, ?MAX_RETRIES, ?MAX_TIME}, [
-        ?CHILD(ecomponent_con_sup, supervisor),
-        ?CHILD(ecomponent, worker)
-    ]}};
-init([MaxR, MaxT]) ->
-    {ok, {{one_for_all, MaxR, MaxT}, [
-        ?CHILD(ecomponent_con_sup, supervisor),
-        ?CHILD(ecomponent, worker)
+    {ok, {{simple_one_for_one, 100, 10}, [
+        {ecomponent_con_workers, 
+            {ecomponent_con_worker, start_link, []}, 
+            transient, 
+            brutal_kill, 
+            worker, 
+            [ecomponent_con_worker]}
     ]}}.
