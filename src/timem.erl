@@ -17,28 +17,18 @@
 %     will be useful to do the expiration or resend.
 %@end
 insert(K, V) ->
-    case mnesia:transaction(fun() ->
-        mnesia:write(#timem{id=K, packet=V, timestamp=tm(os:timestamp())})
-    end) of
-        {atomic, ok} -> true;
-        _ -> false
-    end.
+    mnesia:dirty_write(#timem{id=K, packet=V, timestamp=tm(os:timestamp())}) =:= ok.
 
 -spec remove(K::binary()) -> timem() | undefined.
 %@doc Remove an element from the database.
 %@end
 remove(K) ->
-    case mnesia:transaction(fun() ->
-        case mnesia:read({timem, K}) of
-            [] ->
-                undefined;
-            [R|_] ->
-                mnesia:delete_object(R),
-                {K, R#timem.packet}
-        end
-    end) of
-        {atomic, Record} ->
-            Record
+    case mnesia:dirty_read({timem, K}) of
+        [] ->
+            undefined;
+        [R|_] ->
+            mnesia:dirty_delete_object(R),
+            {K, R#timem.packet}
     end.
 
 -spec expired(D::integer()) -> [binary()].
