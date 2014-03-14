@@ -1,6 +1,7 @@
+%@hidden
 -module(ecomponent_mnesia).
 
--include("../include/ecomponent.hrl").
+-include("ecomponent.hrl").
 
 -export([init/1, init/2]).
 

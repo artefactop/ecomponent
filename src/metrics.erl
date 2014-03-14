@@ -1,3 +1,4 @@
+%@hidden
 -module(metrics).
 
 %% API

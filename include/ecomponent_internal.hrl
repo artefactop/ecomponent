@@ -1,7 +1,6 @@
 -include_lib("exmpp/include/exmpp_jid.hrl").
 -include_lib("exmpp/include/exmpp.hrl").
 -include_lib("exmpp/include/exmpp_client.hrl").
--include_lib("confetti/include/confetti.hrl").
 -include("ecomponent.hrl").
 
 -type jid() :: { Name::string(), Server::string(), Resource::string() }.
@@ -23,7 +22,6 @@
 -define(MAX_PER_PERIOD, 10).
 -define(PERIOD_SECONDS, 6).
 -define(MAX_TRIES, 3).
--define(RESEND_PERIOD, 100).
 -define(REQUEST_TIMEOUT, 10).
 -define(SYSLOG_FACILITY, local7).
 -define(SYSLOG_NAME, "ecomponent").
@@ -37,8 +35,8 @@
     message_processor :: message_processor(),
     presence_processor :: presence_processor(),
     maxTries = ?MAX_TRIES :: integer(),
-    resendPeriod = ?RESEND_PERIOD :: integer(),
     requestTimeout = ?REQUEST_TIMEOUT :: integer(),
+    resend = true :: boolean(),
     accessListSet = [] :: accesslist(),
     accessListGet = [] :: accesslist(),
     syslogFacility = ?SYSLOG_FACILITY :: atom(),
@@ -46,5 +44,6 @@
     timeout = undefined :: integer(),
     features = [] :: [binary()],
     info = [] :: proplists:proplists(),
-    disco_info = true :: boolean()
+    disco_info = true :: boolean(),
+    throttle = true :: boolean()
 }).

@@ -1,0 +1,65 @@
+<functional>
+
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <steps>
+        <step name="save Packet" type="store">
+            <iq xmlns='jabber:client'
+                type='get'
+                from='alice.localhost'
+                to='bob.localhost'
+                id='test_bot'>
+                <query xmlns='http://jabber.org/protocol/disco#info'/>
+            </iq>
+        </step>
+        <step name="request Packet as sync_send()" type="code"><![CDATA[
+            NS = 'urn:myinfo',
+            spawn_link(fun() -> 
+                PID ! ecomponent:sync_send(Packet, NS) 
+            end)
+        ]]></step>
+        <step name="receive the request from sync_send()" type="receive">
+            <iq xmlns='jabber:client'
+                type='get'
+                from='alice.localhost'
+                to='bob.localhost'
+                id='test_bot'>
+                <query xmlns='urn:myinfo'/>
+            </iq>
+        </step>
+        <step name="send the result packet to sync_send()" type="send">
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='bob.localhost'
+                to='alice.localhost'>
+                <query xmlns='urn:myinfo'>
+                    <feature var='jabber:iq:last'/>
+                </query>
+            </iq>
+        </step>
+        <step name="check params received" type="code"><![CDATA[
+            receive
+                #params{type="result",server=default} ->
+                    ok;
+                Any -> throw(Any)
+            after 1000 ->
+                throw("TIMEOUT!!!")
+            end
+        ]]></step>
+    </steps>
+
+</functional>

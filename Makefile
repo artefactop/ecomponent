@@ -1,11 +1,15 @@
+REBAR = ./rebar
+
 all: compile
 
 compile:
-	rebar compile
+	${REBAR} compile
 
-test: compile
-	rebar ct skip_deps=true
+get-deps:
+	${REBAR} get-deps
+
+test: get-deps compile
+	${REBAR} eunit skip_deps=true
 
 clean:
-	rebar clean
-
+	${REBAR} clean
