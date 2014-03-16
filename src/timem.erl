@@ -31,12 +31,8 @@ remove(K) ->
         [] ->
             undefined;
         [R|_] ->
-            try
-                mnesia:dirty_delete_object(R),
-                {K, R#timem.packet}
-            catch
-                _:_ -> undefined
-            end
+            mnesia:dirty_delete_object(R),
+            {K, R#timem.packet}
     end.
 
 -spec expired(D::integer()) -> [binary()].
