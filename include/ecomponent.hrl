@@ -35,7 +35,8 @@
 -record(timem, {
     id :: string(),
     packet :: term(),
-    timestamp :: integer()
+    timestamp :: integer(),
+    node = node() :: atom()
 }).
 
 -record(message, {
