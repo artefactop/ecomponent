@@ -87,7 +87,10 @@ init([{ID, Group}, JIDdefault, Conf]) ->
 %@hidden
 handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
-    timem:insert({ID, ToBin}, State#state.group),
+    case ReceivedPacket#received_packet.packet_type of
+        iq -> timem:insert({ID, ToBin}, State#state.group);
+        _ -> ok
+    end,
     ecomponent ! {ReceivedPacket, State#state.group},
     {noreply, State};
 
