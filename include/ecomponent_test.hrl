@@ -89,7 +89,7 @@ end).
 -define(meck_syslog(), ?meck_syslog(false)).
 
 -define(meck_config(Config), begin
-    lists:foreach(fun(Key, Val) ->
+    lists:foreach(fun({Key, Val}) ->
         application:set_env(ecomponent, Key, Val)
     end, Config)
 end).
