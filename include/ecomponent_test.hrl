@@ -89,8 +89,11 @@ end).
 -define(meck_syslog(), ?meck_syslog(false)).
 
 -define(meck_config(Config), begin
-    lists:foreach(fun({Key, Val}) ->
-        application:set_env(ecomponent, Key, Val)
+    lists:foreach(fun
+        ({Key, Val}) ->
+            application:set_env(ecomponent, Key, Val);
+        %% dummy added in the configuration:
+        ([]) -> ok
     end, Config)
 end).
 
