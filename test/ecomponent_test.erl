@@ -60,9 +60,9 @@ init_per_suite() ->
         ]},
         {message_processor, {mod, dummy}},
         {presence_processor, {mod, dummy}},
-        {features, [<<"jabber:iq:last">>]}
-    ]),
-    meck:unload(application). 
+        {features, [<<"jabber:iq:last">>]},
+        {mnesia_callback, []}
+    ]). 
 
 end_per_suite(_Config) ->
     mnesia:stop(),
@@ -122,7 +122,8 @@ init(_) ->
         ]},
         {message_processor, {mod, dummy}},
         {presence_processor, {mod, dummy}},
-        {features, [<<"jabber:iq:last">>]}
+        {features, [<<"jabber:iq:last">>]},
+        {mnesia_callback, []}
     ],
     ?meck_config(Conf),
     meck:new(dummy),
@@ -130,7 +131,6 @@ init(_) ->
     {ok, _} = ecomponent_con_worker:start_link({default,default}, "ecomponent.test", Conf).
 
 -define(finish(), begin
-    meck:unload(application),
     meck:unload(dummy),
     ecomponent:stop(),
     ?_assert(true)
@@ -147,7 +147,6 @@ config_test(_Config) ->
     mnesia:table_info(dummy, all), 
     lager:info("~p~n", [State]),
     timer:sleep(250), 
-    meck:unload(application),
     ?_assertMatch(#state{
         jid = "ecomponent.test",
         maxPerPeriod = 15,

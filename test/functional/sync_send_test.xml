@@ -51,14 +51,8 @@
                 </query>
             </iq>
         </step>
-        <step name="check params received" type="code"><![CDATA[
-            receive
-                #params{type="result",server=default} ->
-                    ok;
-                Any -> throw(Any)
-            after 1000 ->
-                throw("TIMEOUT!!!")
-            end
+        <step name="check params received" type="receive"><![CDATA[
+            #params{type="result",server=default}
         ]]></step>
     </steps>
 

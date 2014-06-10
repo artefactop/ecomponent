@@ -21,16 +21,6 @@
         timem:insert(Id, #matching{id=Id_l, ns='urn:itself', processor=self()})
     ]]></start-code>
 
-    <stop-code><![CDATA[
-        receive
-            #response{ns='urn:itself', params=Params} when is_record(Params,params) ->
-                ok;
-            Any -> throw(Any)
-        after 1000 ->
-            throw("TIMEOUT!!!")
-        end
-    ]]></stop-code>
-
     <steps>
         <step name="send an error" type="send">
             <iq xmlns='jabber:client'
@@ -40,6 +30,10 @@
                 <error xmlns='urn:itself'/>
             </iq>
         </step>
+        <step name="receive a response" type="receive"><![CDATA[
+            #response{ns='urn:itself', params=Params}
+                when is_record(Params,params)
+        ]]></step>
     </steps>
 
 </functional>

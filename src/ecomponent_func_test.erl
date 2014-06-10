@@ -62,7 +62,10 @@ run(Test) ->
     {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
         Functional = parse_file(Test),
         %% TODO: add mnesia clustering options
-        Config = Functional#functional.config ++ [{mnesia_nodes, [node()]}],
+        Config = Functional#functional.config ++ [
+            {mnesia_nodes, [node()]},
+            {mnesia_callback, []}
+        ],
         %% TODO: launch slaves depend on cluster configuration
         ?debugFmt("config = ~p~n", [Config]),
         ?meck_config(Config),

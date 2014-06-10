@@ -23,16 +23,6 @@
         </mockup>
     </mockups>
 
-    <stop-code><![CDATA[
-        receive
-            #message{type="chat", xmlel=_Xmlel} ->
-                ok;
-            Any -> throw(Any)
-        after 1000 ->
-            throw("TIMEOUT!!!")
-        end
-    ]]></stop-code>
-
     <steps>
         <step name="send message to ecomponent" type="send">
             <message xmlns='jabber:client' 
@@ -42,6 +32,9 @@
                 <body>ping</body>
             </message>
         </step>
+        <step name="receive message" type="receive"><![CDATA[
+            #message{type="chat", xmlel=_Xmlel}
+        ]]></step>
     </steps>
 
 </functional>
