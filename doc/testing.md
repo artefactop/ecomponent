@@ -225,6 +225,12 @@ The steps should be executed in the order appears in the file. The log show the 
 ]]></step>
 ```
 
+* `quiet`: waits a specific time and if something is received in that time, throw an error.
+
+```xml
+<step name="nothing should be received" type="quiet" timeout="1000"/>
+```
+
 The params for the `step` tag are the following:
 
 * `name`: the information that you can see when the test is running.

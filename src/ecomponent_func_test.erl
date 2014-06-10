@@ -58,7 +58,7 @@ check(Tests, Timeout, Verbose) ->
 %     the environment.
 %@end
 run(Test) ->
-    ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
+    ?debugFmt("~n~n~n******************** Check Functional Test: ~p~n~n", [Test]),
     {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
         Functional = parse_file(Test),
         %% TODO: add mnesia clustering options
@@ -88,7 +88,9 @@ run(Test) ->
         unmock(Functional#functional.mockups)
     end),
     receive 
-        {'DOWN',ProcessRef,process,ProcessPID,normal} -> ok;
+        {'DOWN',ProcessRef,process,ProcessPID,normal} ->
+            ?debugFmt("~n**********========== Test OK~n~n", []),
+            ok;
         {'DOWN',ProcessRef,process,ProcessPID,Reason} -> 
             ?debugFmt("DIE: ~p~n", [Reason]),
             throw(eprocdie)
@@ -168,7 +170,7 @@ run_steps([],_) ->
     ok;
 
 run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket) ->
-    ?debugFmt("STEP (code): ~s~n", [Name]),
+    ?debugFmt("~n++++++++++++++++++++ STEP (code): ~s~n~n", [Name]),
     Fun(PrevPacket, self()),
     if 
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
@@ -176,7 +178,7 @@ run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket
     end;
 
 run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("STEP (store): ~s~n", [Name]),
+    ?debugFmt("~n++++++++++++++++++++ STEP (store): ~s~n", [Name]),
     ?debugFmt("Store: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     %% TODO: check stanza for replace vars {{whatever}}
     if 
@@ -185,7 +187,7 @@ run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevP
     end;
 
 run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("STEP (send): ~s~n", [Name]),
+    ?debugFmt("~n++++++++++++++++++++ STEP (send): ~s~n", [Name]),
     ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     #xmlel{name=PacketType} = Stanza,
     TypeAttr = binary_to_list(exmpp_xml:get_attribute(Stanza, <<"type">>, <<"normal">>)),
@@ -207,7 +209,7 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
     end;
 
 run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("STEP (receive): ~s~n", [Name]),
+    ?debugFmt("~n++++++++++++++++++++ STEP (receive): ~s~n", [Name]),
     ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     receive
         NewStanza -> 
@@ -222,9 +224,23 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|S
     end;
 
 run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket) ->
-    ?debugFmt("STEP (code receive): ~s~n", [Name]),
+    ?debugFmt("~n++++++++++++++++++++ STEP (code receive): ~s~n~n", [Name]),
     Fun(PrevPacket, self()),
     if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
+        true -> run_steps(Steps, PrevPacket)
+    end;
+
+run_steps([#step{name=Name,times=T,type='quiet'}=Step|Steps], PrevPacket) ->
+    ?debugFmt("~n++++++++++++++++++++ STEP (quiet): ~s~n~n", [Name]),
+    receive
+        Something ->
+            ?debugFmt("NOT QUIET!!! ~p~n", [Something]),
+            throw(Something)
+    after Step#step.timeout ->
+        ok
+    end,
+    if
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
         true -> run_steps(Steps, PrevPacket)
     end.
@@ -422,6 +438,14 @@ parse(#xmlel{name=mockups, children=Mockups}=MockupsTag) ->
 
 parse(#xmlel{name=steps, children=Steps}) ->
     lists:map(fun
+        (#xmlel{children=[]}=Step) ->
+            Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"quiet">>)),
+            #step{
+                name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
+                type=Type,
+                times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
+                timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
+                idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
         (#xmlel{children=[#xmlel{}=Child]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
             #step{
@@ -503,4 +527,5 @@ bin_to_integer(B) ->
 bin_to_type(<<"receive">>) -> 'receive';
 bin_to_type(<<"code">>) -> 'code';
 bin_to_type(<<"store">>) -> 'store';
+bin_to_type(<<"quiet">>) -> 'quiet';
 bin_to_type(_) -> 'send'.
