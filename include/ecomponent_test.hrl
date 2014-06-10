@@ -89,14 +89,9 @@ end).
 -define(meck_syslog(), ?meck_syslog(false)).
 
 -define(meck_config(Config), begin
-    meck:new(application, [passthrough, unstick]),
-    meck:expect(application, get_all_env, 1, Config),
-    meck:expect(application, get_env, fun(_,Key) ->
-        case proplists:get_value(Key, Config) of
-            undefined -> undefined;
-            Value -> {ok, Value}
-        end
-    end)
+    lists:foreach(fun(Key, Val) ->
+        application:set_env(ecomponent, Key, Val)
+    end, Config)
 end).
 
 -define(meck_component(), (fun() ->

@@ -85,7 +85,6 @@ run(Test) ->
         (Functional#functional.stop)(),
 
         ecomponent:stop(),
-        meck:unload(application),
         unmock(Functional#functional.mockups)
     end),
     receive 
