@@ -1,9 +1,10 @@
 %@hidden
--module(metrics).
+-module(ecomponent_metrics).
 
 %% API
 -export([
-    init/0, 
+    init/0,
+    init/1,
     notify_throughput_presence/2,
     notify_throughput_message/2,
     notify_throughput_iq/3, 
@@ -13,12 +14,18 @@
     notify_dropped_message/1,
     notify_dropped_iq/2,
 
+    notify/1,
     notify/2
 ]).
 
 -spec init() -> ok.
 
 init() ->
+    init([]).
+
+-spec init(Conf::proplists:proplist()) -> ok.
+
+init(Conf) ->
     case ets:info(metrics) of
         undefined ->
             ets:new(metrics, [named_table, public]);
@@ -31,6 +38,9 @@ init() ->
         _ ->
             ets:delete_all_objects(response_time)
     end,
+    lists:foreach(fun(Module) ->
+        [ create(Metric) || Metric <- Module:init() ]
+    end, proplists:get_value(metrics_mods, Conf, [])),
     ok.
 
 -spec notify_throughput_presence(IO::atom(), Type :: atom()) ->
@@ -122,10 +132,15 @@ notify(Name) ->
 -spec notify(Name :: string(), Value :: integer()) -> ok.
 
 notify(Name, Value) ->
-    case ets:member(metrics, Name) of 
-        false ->
-            folsom_metrics:new_spiral(Name), %% last 60 sec
-            ets:insert(metrics, {Name, 1});
-        _ -> true
-    end,
+    create(Name),
     folsom_metrics:notify({Name, Value}).
+
+-spec create(Metric :: atom()) -> true.
+
+create(Metric) ->
+    case ets:member(metrics, Metric) of 
+        false ->
+            folsom_metrics:new_spiral(Metric), %% last 60 sec
+            ets:insert(metrics, {Metric, 1});
+        _ -> true
+    end.

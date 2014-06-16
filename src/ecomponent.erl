@@ -156,14 +156,14 @@ handle_info(
         raw_packet=IQ, 
         from={Node, Domain, _}=From}=ReceivedPacket,
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
-    spawn(metrics, notify_throughput_iq, [in, Type, NS]),
+    spawn(ecomponent_metrics, notify_throughput_iq, [in, Type, NS]),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+        spawn(ecomponent_metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
         if
             (DiscoInfo =:= false) andalso (?NS_DISCO_INFO =:= NS) ->
                 lager:debug("Ignored by disco#info muted! NS=~p~n", [NS]),
@@ -175,7 +175,7 @@ handle_info(
         end,
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(metrics, notify_dropped_iq, [Type, NS]),
+        spawn(ecomponent_metrics, notify_dropped_iq, [Type, NS]),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -188,7 +188,7 @@ handle_info(
         type_attr=Type, 
         raw_packet=Message, 
         from={Node, Domain, _}=From}=ReceivedPacket,
-    spawn(metrics, notify_throughput_message, [in, Type]),
+    spawn(ecomponent_metrics, notify_throughput_message, [in, Type]),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
@@ -199,7 +199,7 @@ handle_info(
             Type, Message, From, ServerID]),
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(metrics, notify_dropped_message, [Type]),
+        spawn(ecomponent_metrics, notify_dropped_message, [Type]),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -213,7 +213,7 @@ handle_info(
         type_attr=Type, 
         raw_packet=Presence, 
         from={Node, Domain, _}=From}=ReceivedPacket,
-    spawn(metrics, notify_throughput_presence, [in, Type]),
+    spawn(ecomponent_metrics, notify_throughput_presence, [in, Type]),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
@@ -224,7 +224,7 @@ handle_info(
             Type, Presence, From, ServerID]),
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(metrics, notify_dropped_presence, [Type]),
+        spawn(ecomponent_metrics, notify_dropped_presence, [Type]),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -239,14 +239,14 @@ handle_info({send, OPacket, NS, App, Reply, ServerID}, State) ->
     end,
     case Kind of
         request when Reply =:= false ->
-            spawn(metrics, notify_throughput_iq, [
+            spawn(ecomponent_metrics, notify_throughput_iq, [
                 out, exmpp_iq:get_type(Packet), NS]);
         request ->
-            spawn(metrics, notify_throughput_iq, [
+            spawn(ecomponent_metrics, notify_throughput_iq, [
                 out, exmpp_iq:get_type(Packet), NS]),
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
-            spawn(metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
+            spawn(ecomponent_metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
     end,
     lager:debug("Sending packet ~p",[Packet]),
     case ServerID of 
@@ -264,7 +264,7 @@ handle_info({send_message, OPacket, ServerID}, State) ->
             OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(metrics, notify_throughput_message, [
+    spawn(ecomponent_metrics, notify_throughput_message, [
         out, case exmpp_stanza:get_type(Packet) of
             undefined -> <<"normal">>;
             Type -> Type
@@ -285,7 +285,7 @@ handle_info({send_presence, OPacket, ServerID}, State) ->
             OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(metrics, notify_throughput_presence, [
+    spawn(ecomponent_metrics, notify_throughput_presence, [
         out, case exmpp_stanza:get_type(Packet) of 
             undefined -> <<"available">>;
             Type -> Type 
@@ -430,12 +430,12 @@ configure() ->
 
     ecomponent_con:start_link(JID, Conf),
     ecomponent_mnesia:init(Conf),
+    ecomponent_metrics:init(Conf),
     Throttle = proplists:get_value(throttle, Conf, true),
     case Throttle of
         true -> mod_monitor:init(WhiteList);
         false -> ok
     end,
-    metrics:init(),
     prepare_processors(Processors),
     State = #state{
         jid = JID,

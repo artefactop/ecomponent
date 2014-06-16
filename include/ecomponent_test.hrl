@@ -110,16 +110,19 @@ end).
 end)()).
 
 -define(meck_metrics(), begin 
-    meck:new(metrics),
-    meck:expect(metrics, init, fun() -> ok end),
-    meck:expect(metrics, notify_throughput_iq, fun(_IO, _Type, _NS) -> ok end),
-    meck:expect(metrics, notify_throughput_presence, fun(_IO, _Type) -> ok end),
-    meck:expect(metrics, notify_throughput_message, fun(_IO, _Type) -> ok end),
-    meck:expect(metrics, set_iq_time, fun(_ID, _Type, _NS) -> ok end),
-    meck:expect(metrics, notify_dropped_iq, fun(_Type, _NS) -> ok end),
-    meck:expect(metrics, notify_dropped_presence, fun(_Type) -> ok end),
-    meck:expect(metrics, notify_dropped_message, fun(_Type) -> ok end),
-    meck:expect(metrics, notify_resp_time, fun(_ID) -> ok end)
+    meck:new(ecomponent_metrics),
+    meck:expect(ecomponent_metrics, init, 0, ok),
+    meck:expect(ecomponent_metrics, init, 1, ok),
+    meck:expect(ecomponent_metrics, notify_throughput_iq, 3, ok),
+    meck:expect(ecomponent_metrics, notify_throughput_presence, 2, ok),
+    meck:expect(ecomponent_metrics, notify_throughput_message, 2, ok),
+    meck:expect(ecomponent_metrics, set_iq_time, 3, ok),
+    meck:expect(ecomponent_metrics, notify_dropped_iq, 2, ok),
+    meck:expect(ecomponent_metrics, notify_dropped_presence, 1, ok),
+    meck:expect(ecomponent_metrics, notify_dropped_message, 1, ok),
+    meck:expect(ecomponent_metrics, notify_resp_time, 1, ok),
+    meck:expect(ecomponent_metrics, notify, 1, ok),
+    meck:expect(ecomponent_metrics, notify, 2, ok)
 end).
 
 -define(meck_jid(), begin
