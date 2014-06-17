@@ -36,9 +36,8 @@
 ]).
 
 -spec is_active(ID::atom()) -> boolean().
-%@doc Add an ID to the active list of connections. If the connection is
-%     available in the other lists (passive or down) is removed from these
-%     too.
+%@doc Checks an ID. If the connection is available as passive or down
+%     returns true, otherwise false.
 %@end
 is_active(ID) ->
     gen_server:call(?MODULE, {is_active, ID}).
