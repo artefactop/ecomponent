@@ -90,7 +90,9 @@ sync_send(Packet, NS) ->
 sync_send(Packet, NS, ServerID) ->
     send(Packet, NS, self(), true, ServerID),
     receive 
-        #response{params=Params=#params{type="result"}} ->
+        #response{params=Params=#params{type=Type}}
+                when Type =:= "result"
+                orelse Type =:= "error" ->
             Params
     after 5000 ->
         {error, timeout}
