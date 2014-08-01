@@ -215,8 +215,10 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|S
     ?debugFmt("~n++++++++++++++++++++ STEP (receive): ~s~n", [Name]),
     ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     receive
-        NewStanza -> 
-            compare_stanza(Stanza, NewStanza)
+        NewStanza ->
+            A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
+            B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
+            compare_stanza(A, B)
     after Step#step.timeout ->
         ?debugFmt("TIMEOUT!!! we need to receive ~p~n", [Stanza]),
         throw(enostanza)
