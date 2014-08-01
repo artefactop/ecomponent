@@ -273,8 +273,8 @@ compare_stanza(
             ?debugFmt("expected: ~p~n", [B]),
             ?assertEqual(A,B)
     end, lists:zip(AttrsA, AttrsB)),
-    ChildrenA = lists:sort([{A,undefined,undefined,B,C,D} || {A,_,_,B,C,D} <- Children1]),
-    ChildrenB = lists:sort([{A,undefined,undefined,B,C,D} || {A,_,_,B,C,D} <- Children2]),
+    ChildrenA = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children1]),
+    ChildrenB = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children2]),
     case length(ChildrenA) == length(ChildrenB) of
         true -> ok;
         false -> throw({children_length, [{children1, ChildrenA}, {children2, ChildrenB}]})
@@ -532,3 +532,11 @@ bin_to_type(<<"code">>) -> 'code';
 bin_to_type(<<"store">>) -> 'store';
 bin_to_type(<<"quiet">>) -> 'quiet';
 bin_to_type(_) -> 'send'.
+
+-spec to_str(Any::any()) -> string().
+
+to_str(Bin) when is_binary(Bin) -> binary_to_list(Bin);
+to_str(Str) when is_list(Str) -> Str;
+to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
+to_str(Int) when is_integer(Int) -> integer_to_list(Int);
+to_str(Float) when is_float(Float) -> float_to_list(Float).
