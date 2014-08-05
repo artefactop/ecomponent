@@ -193,7 +193,12 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
     ?debugFmt("~n++++++++++++++++++++ STEP (send): ~s~n", [Name]),
     ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
     #xmlel{name=PacketType} = Stanza,
-    TypeAttr = binary_to_list(exmpp_xml:get_attribute(Stanza, <<"type">>, <<"normal">>)),
+    DefaultType = case PacketType of
+        iq -> enotype;
+        presence -> <<"available">>;
+        message -> <<"normal">>
+    end,
+    TypeAttr = binary_to_list(exmpp_xml:get_attribute(Stanza, <<"type">>, DefaultType)),
     From = exmpp_xml:get_attribute(Stanza, <<"from">>, <<"bob@localhost/pc">>),
     FromJID = exmpp_jid:parse(From),
     %% TODO: check stanza for replace vars {{whatever}}
