@@ -135,7 +135,11 @@ mock(Mockups,Opts) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
         ?debugFmt("meck:new(~p, ~p).~n", [M,Opts]),
-        meck:new(M, Opts)
+        case catch meck:new(M, Opts) of
+            {'EXIT',{{already_started,_},_}} -> ok;
+            ok -> ok;
+            Error -> throw(Error)
+        end
     end, Modules),
     [ mock_functions(M) || M <- Mockups ],
     ok.
