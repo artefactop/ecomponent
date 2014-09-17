@@ -86,6 +86,7 @@ init([{ID, Group}, JIDdefault, Conf]) ->
     {stop, Reason::any(), State::#state{}}.
 %@hidden
 handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
+    lager:debug("Received Packet: ~p~n", [ReceivedPacket]),
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
     case ReceivedPacket#received_packet.packet_type of
         iq -> timem:insert({ID, ToBin}, State#state.group);
