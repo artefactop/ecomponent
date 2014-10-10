@@ -158,26 +158,26 @@ handle_info(
         raw_packet=IQ, 
         from={Node, Domain, _}=From}=ReceivedPacket,
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
-    spawn(ecomponent_metrics, notify_throughput_iq, [in, Type, NS]),
+    ecomponent_metrics:notify_throughput_iq(in, Type, NS),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(ecomponent_metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+        ecomponent_metrics:set_iq_time(exmpp_stanza:get_id(IQ), Type, NS),
         if
             (DiscoInfo =:= false) andalso (?NS_DISCO_INFO =:= NS) ->
                 lager:debug("Ignored by disco#info muted! NS=~p~n", [NS]),
                 ignore;
             true ->
                 lager:debug("To process packet with NS=~p~n", [NS]),
-                spawn(iq_handler, pre_process_iq, [
+                process_run(iq_handler, pre_process_iq, [
                     Type, IQ, NS, From, Features, Info, ServerID])
         end,
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(ecomponent_metrics, notify_dropped_iq, [Type, NS]),
+        ecomponent_metrics:notify_dropped_iq(Type, NS),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -190,18 +190,18 @@ handle_info(
         type_attr=Type, 
         raw_packet=Message, 
         from={Node, Domain, _}=From}=ReceivedPacket,
-    spawn(ecomponent_metrics, notify_throughput_message, [in, Type]),
+    ecomponent_metrics:notify_throughput_message(in, Type),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(message_handler, pre_process_message, [
+        process_run(message_handler, pre_process_message, [
             Type, Message, From, ServerID]),
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(ecomponent_metrics, notify_dropped_message, [Type]),
+        ecomponent_metrics:notify_dropped_message(Type),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -215,18 +215,18 @@ handle_info(
         type_attr=Type, 
         raw_packet=Presence, 
         from={Node, Domain, _}=From}=ReceivedPacket,
-    spawn(ecomponent_metrics, notify_throughput_presence, [in, Type]),
+    ecomponent_metrics:notify_throughput_presence(in, Type),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(presence_handler, pre_process_presence, [
+        process_run(presence_handler, pre_process_presence, [
             Type, Presence, From, ServerID]),
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(ecomponent_metrics, notify_dropped_presence, [Type]),
+        ecomponent_metrics:notify_dropped_presence(Type),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -241,14 +241,14 @@ handle_info({send, OPacket, NS, App, Reply, ServerID}, State) ->
     end,
     case Kind of
         request when Reply =:= false ->
-            spawn(ecomponent_metrics, notify_throughput_iq, [
-                out, exmpp_iq:get_type(Packet), NS]);
+            ecomponent_metrics:notify_throughput_iq(
+                out, exmpp_iq:get_type(Packet), NS);
         request ->
-            spawn(ecomponent_metrics, notify_throughput_iq, [
-                out, exmpp_iq:get_type(Packet), NS]),
+            ecomponent_metrics:notify_throughput_iq(
+                out, exmpp_iq:get_type(Packet), NS),
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
-            spawn(ecomponent_metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
+            ecomponent_metrics:notify_resp_time(exmpp_stanza:get_id(Packet))
     end,
     lager:debug("Sending packet ~p",[Packet]),
     case ServerID of 
@@ -266,12 +266,12 @@ handle_info({send_message, OPacket, ServerID}, State) ->
             OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(ecomponent_metrics, notify_throughput_message, [
-        out, case exmpp_stanza:get_type(Packet) of
-            undefined -> <<"normal">>;
-            Type -> Type
-        end]),
-    case ServerID of 
+    Type = case exmpp_stanza:get_type(Packet) of
+        undefined -> <<"normal">>;
+        T -> T
+    end, 
+    ecomponent_metrics:notify_throughput_message(out, Type),
+    case ServerID of
         undefined -> ecomponent_con:send(Packet);
         _ -> ecomponent_con:send(Packet, ServerID)
     end,
@@ -280,18 +280,18 @@ handle_info({send_message, OPacket, ServerID}, State) ->
 
 handle_info({send_presence, OPacket, ServerID}, State) ->
     Packet = case exmpp_stanza:get_id(OPacket) of
-        undefined ->
-            ID = gen_id(),
-            exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
-        _ -> 
-            OPacket
+    undefined ->
+        ID = gen_id(),
+        exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
+    _ -> 
+        OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(ecomponent_metrics, notify_throughput_presence, [
-        out, case exmpp_stanza:get_type(Packet) of 
-            undefined -> <<"available">>;
-            Type -> Type 
-        end]),
+    Type = case exmpp_stanza:get_type(Packet) of
+        undefined -> <<"available">>;
+        T -> T
+    end, 
+    ecomponent_metrics:notify_throughput_presence(out, Type),
     case ServerID of 
         undefined -> ecomponent_con:send(Packet);
         _ -> ecomponent_con:send(Packet, ServerID)
@@ -395,6 +395,28 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+-spec waiting_data() -> ok.
+%@hidden
+waiting_data() ->
+    receive
+        {M, F, A} -> erlang:apply(M, F, A)
+    after 5000 ->
+        lager:error("waiting data doesn't receive data!", [])
+    end,
+    ok.
+
+-spec process_run(M::atom(), F::atom(), A::[any()]) -> ok.
+%@hidden
+process_run(M, F, A) ->
+    PID = spawn(fun waiting_data/0),
+    case is_process_alive(PID) of
+    true ->
+        PID ! {M,F,A};
+    false ->
+        lager:error("process DIE: ~p:~p ~p", [M,F,A])
+    end,
+    ok.
 
 -spec reset_countdown(State::#state{}) -> #state{}.
 %@hidden
