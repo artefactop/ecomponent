@@ -41,7 +41,8 @@ start_link() ->
 init([]) ->
     {ok, {{one_for_all, ?MAX_RETRIES, ?MAX_TIME}, [
         ?CHILD(ecomponent_con_sup, supervisor),
-        ?CHILD(ecomponent, worker)
+        ?CHILD(ecomponent, worker),
+        ?CHILD(ecomponent_acl, worker)
     ]}};
 init([MaxR, MaxT]) ->
     {ok, {{one_for_all, MaxR, MaxT}, [

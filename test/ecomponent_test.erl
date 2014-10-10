@@ -128,11 +128,13 @@ init(_) ->
     ?meck_config(Conf),
     meck:new(dummy),
     {ok, _} = ecomponent:start_link(),
+    {ok, _} = ecomponent_acl:start_link(),
     {ok, _} = ecomponent_con_worker:start_link({default,default}, "ecomponent.test", Conf).
 
 -define(finish(), begin
     meck:unload(dummy),
     ecomponent:stop(),
+    ecomponent_acl:stop(),
     ?_assert(true)
 end).
 
@@ -156,14 +158,6 @@ config_test(_Config) ->
         presence_processor = {mod, dummy},
         maxTries = 3,
         requestTimeout = 10,
-        accessListSet = [
-            {'com.ecomponent.ns/ns1', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns2', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns3', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns4', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns5', [<<"bob.localhost">>]},
-            {'com.ecomponent.ns/ns6', [<<"bob.localhost">>]}
-        ],
         syslogFacility = local7,
         syslogName = "ecomponent"}, State).
 
@@ -223,15 +217,15 @@ coutdown_test(_Config) ->
 access_list_get_test(_Config) ->
     init(access_list_get_test),
     Bob1 = {undefined, "bob1.localhost", undefined},
-    true = gen_server:call(ecomponent, {access_list_get, 'com.ecomponent.ns/ns1', Bob1}),
+    true = ecomponent_acl:access_list_get('com.ecomponent.ns/ns1', Bob1),
     ?finish().
 
 access_list_set_test(_Config) ->
     init(access_list_set_test),
     Bob = {undefined, "bob.localhost", undefined},
     Bob1 = {undefined, "bob1.localhost", undefined},
-    ?assert(gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob})),
-    ?assertNot(gen_server:call(ecomponent, {access_list_set, 'com.ecomponent.ns/ns1', Bob1})),
+    ?assert(ecomponent_acl:access_list_set('com.ecomponent.ns/ns1', Bob)),
+    ?assertNot(ecomponent_acl:access_list_set('com.ecomponent.ns/ns1', Bob1)),
     ?finish().
 
 multiconnection_test(_Config) ->

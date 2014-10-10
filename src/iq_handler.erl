@@ -68,21 +68,21 @@ process_iq(#params{type="result"}=Params) ->
     forward_response(Params);
 
 process_iq(#params{type="set", ns=NS, iq=IQ, from=From}=Params) ->
-    case gen_server:call(ecomponent, {access_list_set, NS, From}) of
-        true ->
-            forward_ns(Params);
-        false ->
-            ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
-            ecomponent:send(exmpp_iq:error(IQ, 'forbidden'), NS, undefined)
+    case ecomponent_acl:access_list_set(NS, From) of
+    true ->
+        forward_ns(Params);
+    false ->
+        ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
+        ecomponent:send(exmpp_iq:error(IQ, 'forbidden'), NS, undefined)
     end;
 
 process_iq(#params{type="get", ns=NS, iq=IQ, from=From}=Params) ->
-    case gen_server:call(ecomponent, {access_list_get, NS, From}) of
-        true ->
-            forward_ns(Params);
-        false ->
-            ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
-            ecomponent:send(exmpp_iq:error(IQ, 'forbidden'), NS, undefined)
+    case ecomponent_acl:access_list_get(NS, From) of
+    true ->
+        forward_ns(Params);
+    false ->
+        ecomponent:syslog(warning, io_lib:format("Access denied for: ~p to ~p~n", [From, NS])),
+        ecomponent:send(exmpp_iq:error(IQ, 'forbidden'), NS, undefined)
     end;
 
 process_iq(P) ->
@@ -93,40 +93,38 @@ process_iq(P) ->
 %@end
 forward_ns(#params{ns=NS}=Params) ->
     case ecomponent:get_processor_by_ns(NS) of
-        undefined -> 
-            spawn(processor, process_iq, [Params]);
-        {mod, P} ->
-            spawn(fun() ->
-                try
-                    P:process_iq(Params)
-                catch Error ->
-                    lager:error("call to module ~p die: ~p~n", [P, Error]),
-                    Error = exmpp_xml:element(undefined, 'error', [
-                        exmpp_xml:attribute(<<"type">>, <<"wait">>),
-                        exmpp_xml:attribute(<<"code">>, <<"500">>)
-                    ], [
-                        exmpp_xml:element(
-                            'urn:ietf:params:xml:ns:xmpp-stanzas', 
-                            'internal-server-error', [], []),
-                        exmpp_xml:element(
-                            'urn:ietf:params:xml:ns:xmpp-stanzas',
-                            'text', [], [
-                                exmpp_xml:cdata(<<"Server crash!">>)
-                    ])]),
-                    Result = exmpp_iq:error(Params#params.iq, Error),
-                    ecomponent:send(Result, ?NS_DISCO_ITEMS, ecomponent, false)
-                end
-            end);
-        {app, Name} ->
-            PID = whereis(Name),
-            case erlang:is_pid(PID) andalso erlang:is_process_alive(PID) of
-                true -> 
-                    PID ! {iq, Params};
-                _ -> 
-                    lager:warning("Process not Alive for NS: ~p~n", [NS])
-            end;
-        Proc -> 
-            lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Params])
+    undefined -> 
+        processor:process_iq(Params);
+    {mod, P} ->
+        try
+            P:process_iq(Params)
+        catch Error ->
+            lager:error("call to module ~p die: ~p~n", [P, Error]),
+            Error = exmpp_xml:element(undefined, 'error', [
+                exmpp_xml:attribute(<<"type">>, <<"wait">>),
+                exmpp_xml:attribute(<<"code">>, <<"500">>)
+            ], [
+                exmpp_xml:element(
+                    'urn:ietf:params:xml:ns:xmpp-stanzas', 
+                    'internal-server-error', [], []),
+                exmpp_xml:element(
+                    'urn:ietf:params:xml:ns:xmpp-stanzas',
+                    'text', [], [
+                        exmpp_xml:cdata(<<"Server crash!">>)
+            ])]),
+            Result = exmpp_iq:error(Params#params.iq, Error),
+            ecomponent:send(Result, ?NS_DISCO_ITEMS, ecomponent, false)
+        end;
+    {app, Name} ->
+        PID = whereis(Name),
+        case erlang:is_pid(PID) andalso erlang:is_process_alive(PID) of
+        true -> 
+            PID ! {iq, Params};
+        _ -> 
+            lager:warning("Process not Alive for NS: ~p~n", [NS])
+        end;
+    Proc -> 
+        lager:warning("Unknown Request to Forward: ~p ~p~n", [Proc, Params])
     end.
 
 -spec forward_response( Params::#params{} ) -> ok.
@@ -137,9 +135,9 @@ forward_ns(#params{ns=NS}=Params) ->
 forward_response(#params{iq=IQ}=Params) ->
     ID = exmpp_stanza:get_id(IQ),
     case ecomponent:get_processor(ID) of
-        #matching{ns=NS, processor=App} ->
-            App ! #response{ns=NS, params=Params},
-            ok;
-        _ ->
-            ok
+    #matching{ns=NS, processor=App} ->
+        App ! #response{ns=NS, params=Params},
+        ok;
+    _ ->
+        ok
     end.

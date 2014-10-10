@@ -340,14 +340,6 @@ handle_cast(_Msg, State) ->
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
 %@hidden
-handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
-    lager:debug("Received Call: ~p~n", [Info]),
-    {reply, is_allowed(set, NS, Jid, State), State, get_countdown(State)};
-
-handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
-    lager:debug("Received Call: ~p~n", [Info]),
-    {reply, is_allowed(get, NS, Jid, State), State, get_countdown(State)};
-
 handle_call({change_config, syslog, {Facility, Name}}, _From, State) ->
     init_syslog(if
         is_number(Facility) -> Facility;
@@ -471,8 +463,6 @@ configure() ->
         presence_processor = proplists:get_value(presence_processor, Conf, undefined),
         maxTries = proplists:get_value(max_tries, Conf, ?MAX_TRIES),
         requestTimeout = proplists:get_value(request_timeout, Conf, ?REQUEST_TIMEOUT),
-        accessListSet = proplists:get_value(access_list_set, Conf, []),
-        accessListGet = proplists:get_value(access_list_get, Conf, []),
         features = proplists:get_value(features, Conf, []),
         info = proplists:get_value(info, Conf, []), 
         disco_info = proplists:get_value(disco_info, Conf, true),
@@ -602,26 +592,6 @@ unprepare_id([]) -> [];
 unprepare_id([$x|T]) -> [$<|unprepare_id(T)];
 unprepare_id([$X|T]) -> [$>|unprepare_id(T)];
 unprepare_id([H|T]) -> [H|unprepare_id(T)].
-
--spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().
-%@doc Check if is allowed the request (based on ACL lists).
-%@end
-is_allowed(Type, NS, {Node,Domain,Res}, State) when is_list(Domain) ->
-    is_allowed(Type, NS, {Node,list_to_binary(Domain),Res}, State);
-is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
-    is_allowed(NS, Domain, As);
-is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
-    is_allowed(NS, Domain, Ag).
-
--spec is_allowed( NS::atom(), Domain::string(), PList::list(binary()) ) -> boolean().
-%@hidden
-is_allowed(NS, Domain, PList) ->
-    case proplists:get_value(NS, PList) of
-        undefined ->
-            true;
-        List ->
-            lists:member(Domain, List)
-    end.
 
 %@hidden
 -type levels() :: emerg | alert | crit | err | warning | notice | info | debug.

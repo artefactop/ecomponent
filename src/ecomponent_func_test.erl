@@ -76,6 +76,7 @@ run(Test) ->
         mock(Functional#functional.mockups, Functional#functional.mock_opts),
 
         {ok, _} = ecomponent:start_link(),
+        {ok, _} = ecomponent_acl:start_link(),
         JID = proplists:get_value(jid, Config, "ecomponent.bot"),
         lists:foreach(fun({Name, AtomicServerConf}) ->
             {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID, AtomicServerConf)
@@ -88,6 +89,7 @@ run(Test) ->
         (Functional#functional.stop)(),
 
         ecomponent:stop(),
+        ecomponent_acl:stop(),
         unmock(Functional#functional.mockups)
     end),
     receive 
