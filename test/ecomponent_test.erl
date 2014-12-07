@@ -126,7 +126,7 @@ init(_) ->
         {mnesia_callback, []}
     ],
     ?meck_config(Conf),
-    meck:new(dummy),
+    meck:new(dummy, [non_strict]),
     {ok, _} = ecomponent:start_link(),
     {ok, _} = ecomponent_acl:start_link(),
     {ok, _} = ecomponent_con_worker:start_link({default,default}, "ecomponent.test", Conf).
@@ -142,7 +142,7 @@ end).
 
 config_test(_Config) ->
     init(config_test),
-    meck:new(dummy),
+    meck:new(dummy, [non_strict]),
     meck:expect(dummy, tables, 0, [{dummy, ram_copies, record_info(fields, dummy)}]), 
     {ok, State, _Timeout} = ecomponent:init([]), 
     meck:unload(dummy), 

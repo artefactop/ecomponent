@@ -44,14 +44,6 @@ end).
 
 -define(meck_lager(Verbose), begin
     meck:new(lager),
-    meck:expect(lager, dispatch_log, fun(_Severity, _Metadata, _Format, _Args, _Size) ->
-        if 
-            Verbose ->
-                ?debugFmt(_Format, _Args), 
-                ok;
-            true -> ok
-        end
-    end),
     meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, _Pid, _Traces, _Format, _Args, _TruncSize) ->
         if
             Verbose ->

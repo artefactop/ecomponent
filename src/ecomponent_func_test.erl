@@ -443,7 +443,10 @@ parse(#xmlel{name=mockups, children=Mockups}=MockupsTag) ->
     MockOpts = case exmpp_xml:get_attribute(MockupsTag, <<"passthrough">>, <<"false">>) of
         <<"true">> -> [passthrough];
         _ -> []
-    end,
+    end ++ case exmpp_xml:get_attribute(MockupsTag, <<"strict">>, <<"false">>) of
+        <<"false">> -> [non_strict];
+        _ -> []
+    end, 
     MockConfigs = lists:map(fun(#xmlel{}=Mockup) ->
         #mockup{
             module=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"module">>, <<>>), utf8),
