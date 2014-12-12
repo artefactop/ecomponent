@@ -24,6 +24,7 @@ For more information:
 
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="ecomponent.md" class="module">ecomponent</a></td></tr>
+<tr><td><a href="ecomponent_acl.md" class="module">ecomponent_acl</a></td></tr>
 <tr><td><a href="ecomponent_con.md" class="module">ecomponent_con</a></td></tr>
 <tr><td><a href="ecomponent_con_worker.md" class="module">ecomponent_con_worker</a></td></tr>
 <tr><td><a href="ecomponent_func_test.md" class="module">ecomponent_func_test</a></td></tr>

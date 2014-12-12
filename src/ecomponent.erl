@@ -17,7 +17,7 @@
         send/3, send/2, send_message/1, send_message/2, send_presence/1, 
         send_presence/2, save_id/4, syslog/2, 
         configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
-        sync_send/2, sync_send/3]).
+        sync_send/2, sync_send/3, sync_send/4]).
 
 %% gen_server callbacks
 -export([
@@ -80,7 +80,7 @@ send(Packet, NS, App, Reply, ServerID) ->
 %     The second param is the namespace (NS).
 %@end
 sync_send(Packet, NS) ->
-    sync_send(Packet, NS, undefined).
+    sync_send(Packet, NS, undefined, ?ECOMPONENT_DEFAULT_TIMEOUT).
 
 -spec sync_send(Packet::term(), NS::atom(), ServerID::atom()) -> #params{} | {error, timeout}.
 %@doc Send a packet and wait for the reply using a specific server to send.
@@ -88,13 +88,21 @@ sync_send(Packet, NS) ->
 %     response.
 %@end 
 sync_send(Packet, NS, ServerID) ->
+    sync_send(Packet, NS, ServerID, ?ECOMPONENT_DEFAULT_TIMEOUT).
+
+-spec sync_send(Packet::term(), NS::atom(), ServerID::atom(), Timeout::pos_integer()) -> #params{} | {error, tiemout}.
+%@doc Send a packet and wait for the reply using a specific server to send
+%     and the time to await. As in send/3, but you can specify the timeout
+%     in milliseconds.
+%@end
+sync_send(Packet, NS, ServerID, Timeout) ->
     send(Packet, NS, self(), true, ServerID),
     receive 
         #response{params=Params=#params{type=Type}}
                 when Type =:= "result"
                 orelse Type =:= "error" ->
             Params
-    after 5000 ->
+    after Timeout ->
         {error, timeout}
     end.
 
