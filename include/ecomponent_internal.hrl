@@ -37,8 +37,6 @@
     maxTries = ?MAX_TRIES :: integer(),
     requestTimeout = ?REQUEST_TIMEOUT :: integer(),
     resend = true :: boolean(),
-    accessListSet = [] :: accesslist(),
-    accessListGet = [] :: accesslist(),
     syslogFacility = ?SYSLOG_FACILITY :: atom(),
     syslogName = ?SYSLOG_NAME :: string(),
     timeout = undefined :: integer(),

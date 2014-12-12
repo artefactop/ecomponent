@@ -34,9 +34,9 @@ pre_process_message(Type, Message, From, ServerID) ->
 forward(Message) ->
     case ecomponent:get_message_processor() of
         undefined -> 
-            spawn(processor, process_message, [Message]);
+            processor:process_message(Message);
         {mod, P} ->
-            spawn(P, process_message, [Message]);
+            P:process_message(Message);
         {app, Name} ->
             PID = whereis(Name),            
             case erlang:is_pid(PID) andalso erlang:is_process_alive(PID) of
@@ -57,9 +57,9 @@ forward_response(#message{xmlel=Xmlel}=Message) ->
     ID = exmpp_stanza:get_id(Xmlel),
     case ecomponent:get_processor(ID) of
         undefined ->
-            spawn(processor, process_message, [Message]);
+            processor:process_message(Message);
         #matching{processor=undefined} ->
-            spawn(processor, process_message, [Message]);
+            processor:process_message(Message);
         #matching{processor=App} ->
             PID = whereis(App),
             case is_pid(PID) of 

@@ -126,7 +126,7 @@ you get the same atom.
 
 
 <pre><code>
-send(Info::<a href="exmpp_xml.md#type-xmlel">exmpp_xml:xmlel()</a>) -&gt; ok
+send(Info::<strong>exmpp_xml:xmlel()</strong>) -&gt; ok
 </code></pre>
 
 <br></br>
@@ -139,7 +139,7 @@ Select a connection and send the stanza.
 
 
 <pre><code>
-send(Info::<a href="exmpp_xml.md#type-xmlel">exmpp_xml:xmlel()</a>, ID::atom()) -&gt; ok
+send(Info::<strong>exmpp_xml:xmlel()</strong>, ID::atom()) -&gt; ok
 </code></pre>
 
 <br></br>

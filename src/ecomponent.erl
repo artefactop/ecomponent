@@ -17,7 +17,7 @@
         send/3, send/2, send_message/1, send_message/2, send_presence/1, 
         send_presence/2, save_id/4, syslog/2, 
         configure/0, gen_id/0, reset_countdown/1, get_countdown/1,
-        sync_send/2, sync_send/3]).
+        sync_send/2, sync_send/3, sync_send/4]).
 
 %% gen_server callbacks
 -export([
@@ -80,7 +80,7 @@ send(Packet, NS, App, Reply, ServerID) ->
 %     The second param is the namespace (NS).
 %@end
 sync_send(Packet, NS) ->
-    sync_send(Packet, NS, undefined).
+    sync_send(Packet, NS, undefined, ?ECOMPONENT_DEFAULT_TIMEOUT).
 
 -spec sync_send(Packet::term(), NS::atom(), ServerID::atom()) -> #params{} | {error, timeout}.
 %@doc Send a packet and wait for the reply using a specific server to send.
@@ -88,13 +88,21 @@ sync_send(Packet, NS) ->
 %     response.
 %@end 
 sync_send(Packet, NS, ServerID) ->
+    sync_send(Packet, NS, ServerID, ?ECOMPONENT_DEFAULT_TIMEOUT).
+
+-spec sync_send(Packet::term(), NS::atom(), ServerID::atom(), Timeout::pos_integer()) -> #params{} | {error, tiemout}.
+%@doc Send a packet and wait for the reply using a specific server to send
+%     and the time to await. As in send/3, but you can specify the timeout
+%     in milliseconds.
+%@end
+sync_send(Packet, NS, ServerID, Timeout) ->
     send(Packet, NS, self(), true, ServerID),
     receive 
         #response{params=Params=#params{type=Type}}
                 when Type =:= "result"
                 orelse Type =:= "error" ->
             Params
-    after 5000 ->
+    after Timeout ->
         {error, timeout}
     end.
 
@@ -158,26 +166,26 @@ handle_info(
         raw_packet=IQ, 
         from={Node, Domain, _}=From}=ReceivedPacket,
     NS = exmpp_iq:get_payload_ns_as_atom(IQ),
-    spawn(ecomponent_metrics, notify_throughput_iq, [in, Type, NS]),
+    ecomponent_metrics:notify_throughput_iq(in, Type, NS),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(ecomponent_metrics, set_iq_time, [exmpp_stanza:get_id(IQ), Type, NS]),
+        ecomponent_metrics:set_iq_time(exmpp_stanza:get_id(IQ), Type, NS),
         if
             (DiscoInfo =:= false) andalso (?NS_DISCO_INFO =:= NS) ->
                 lager:debug("Ignored by disco#info muted! NS=~p~n", [NS]),
                 ignore;
             true ->
                 lager:debug("To process packet with NS=~p~n", [NS]),
-                spawn(iq_handler, pre_process_iq, [
+                process_run(iq_handler, pre_process_iq, [
                     Type, IQ, NS, From, Features, Info, ServerID])
         end,
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(ecomponent_metrics, notify_dropped_iq, [Type, NS]),
+        ecomponent_metrics:notify_dropped_iq(Type, NS),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -190,18 +198,18 @@ handle_info(
         type_attr=Type, 
         raw_packet=Message, 
         from={Node, Domain, _}=From}=ReceivedPacket,
-    spawn(ecomponent_metrics, notify_throughput_message, [in, Type]),
+    ecomponent_metrics:notify_throughput_message(in, Type),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(message_handler, pre_process_message, [
+        process_run(message_handler, pre_process_message, [
             Type, Message, From, ServerID]),
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(ecomponent_metrics, notify_dropped_message, [Type]),
+        ecomponent_metrics:notify_dropped_message(Type),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -215,18 +223,18 @@ handle_info(
         type_attr=Type, 
         raw_packet=Presence, 
         from={Node, Domain, _}=From}=ReceivedPacket,
-    spawn(ecomponent_metrics, notify_throughput_presence, [in, Type]),
+    ecomponent_metrics:notify_throughput_presence(in, Type),
     JIDBin = list_to_binary(exmpp_jid:to_list(Node, Domain)),
     NoDropPacket = case Throttle of
         true -> mod_monitor:accept(JIDBin, MaxPerPeriod, PeriodSeconds);
         false -> true
     end,
     if NoDropPacket ->
-        spawn(presence_handler, pre_process_presence, [
+        process_run(presence_handler, pre_process_presence, [
             Type, Presence, From, ServerID]),
         {noreply, State, get_countdown(State)};
     true ->
-        spawn(ecomponent_metrics, notify_dropped_presence, [Type]),
+        ecomponent_metrics:notify_dropped_presence(Type),
         {noreply, State, get_countdown(State)}
     end;
 
@@ -241,14 +249,14 @@ handle_info({send, OPacket, NS, App, Reply, ServerID}, State) ->
     end,
     case Kind of
         request when Reply =:= false ->
-            spawn(ecomponent_metrics, notify_throughput_iq, [
-                out, exmpp_iq:get_type(Packet), NS]);
+            ecomponent_metrics:notify_throughput_iq(
+                out, exmpp_iq:get_type(Packet), NS);
         request ->
-            spawn(ecomponent_metrics, notify_throughput_iq, [
-                out, exmpp_iq:get_type(Packet), NS]),
+            ecomponent_metrics:notify_throughput_iq(
+                out, exmpp_iq:get_type(Packet), NS),
             save_id(exmpp_stanza:get_id(Packet), NS, Packet, App);
         _ -> 
-            spawn(ecomponent_metrics, notify_resp_time, [exmpp_stanza:get_id(Packet)])
+            ecomponent_metrics:notify_resp_time(exmpp_stanza:get_id(Packet))
     end,
     lager:debug("Sending packet ~p",[Packet]),
     case ServerID of 
@@ -266,12 +274,12 @@ handle_info({send_message, OPacket, ServerID}, State) ->
             OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(ecomponent_metrics, notify_throughput_message, [
-        out, case exmpp_stanza:get_type(Packet) of
-            undefined -> <<"normal">>;
-            Type -> Type
-        end]),
-    case ServerID of 
+    Type = case exmpp_stanza:get_type(Packet) of
+        undefined -> <<"normal">>;
+        T -> T
+    end, 
+    ecomponent_metrics:notify_throughput_message(out, Type),
+    case ServerID of
         undefined -> ecomponent_con:send(Packet);
         _ -> ecomponent_con:send(Packet, ServerID)
     end,
@@ -280,18 +288,18 @@ handle_info({send_message, OPacket, ServerID}, State) ->
 
 handle_info({send_presence, OPacket, ServerID}, State) ->
     Packet = case exmpp_stanza:get_id(OPacket) of
-        undefined ->
-            ID = gen_id(),
-            exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
-        _ -> 
-            OPacket
+    undefined ->
+        ID = gen_id(),
+        exmpp_xml:set_attribute(OPacket, <<"id">>, ID);
+    _ -> 
+        OPacket
     end,
     lager:debug("Sending packet ~p",[Packet]),
-    spawn(ecomponent_metrics, notify_throughput_presence, [
-        out, case exmpp_stanza:get_type(Packet) of 
-            undefined -> <<"available">>;
-            Type -> Type 
-        end]),
+    Type = case exmpp_stanza:get_type(Packet) of
+        undefined -> <<"available">>;
+        T -> T
+    end, 
+    ecomponent_metrics:notify_throughput_presence(out, Type),
     case ServerID of 
         undefined -> ecomponent_con:send(Packet);
         _ -> ecomponent_con:send(Packet, ServerID)
@@ -340,14 +348,6 @@ handle_cast(_Msg, State) ->
     {stop, Reason::any(), Reply::any(), State::#state{}} |
     {stop, Reason::any(), State::#state{}}.
 %@hidden
-handle_call({access_list_set, NS, Jid} = Info, _From, State) ->
-    lager:debug("Received Call: ~p~n", [Info]),
-    {reply, is_allowed(set, NS, Jid, State), State, get_countdown(State)};
-
-handle_call({access_list_get, NS, Jid} = Info, _From, State) ->
-    lager:debug("Received Call: ~p~n", [Info]),
-    {reply, is_allowed(get, NS, Jid, State), State, get_countdown(State)};
-
 handle_call({change_config, syslog, {Facility, Name}}, _From, State) ->
     init_syslog(if
         is_number(Facility) -> Facility;
@@ -395,6 +395,28 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+-spec waiting_data() -> ok.
+%@hidden
+waiting_data() ->
+    receive
+        {M, F, A} -> erlang:apply(M, F, A)
+    after 5000 ->
+        lager:error("waiting data doesn't receive data!", [])
+    end,
+    ok.
+
+-spec process_run(M::atom(), F::atom(), A::[any()]) -> ok.
+%@hidden
+process_run(M, F, A) ->
+    PID = spawn(fun waiting_data/0),
+    case is_process_alive(PID) of
+    true ->
+        PID ! {M,F,A};
+    false ->
+        lager:error("process DIE: ~p:~p ~p", [M,F,A])
+    end,
+    ok.
 
 -spec reset_countdown(State::#state{}) -> #state{}.
 %@hidden
@@ -449,8 +471,6 @@ configure() ->
         presence_processor = proplists:get_value(presence_processor, Conf, undefined),
         maxTries = proplists:get_value(max_tries, Conf, ?MAX_TRIES),
         requestTimeout = proplists:get_value(request_timeout, Conf, ?REQUEST_TIMEOUT),
-        accessListSet = proplists:get_value(access_list_set, Conf, []),
-        accessListGet = proplists:get_value(access_list_get, Conf, []),
         features = proplists:get_value(features, Conf, []),
         info = proplists:get_value(info, Conf, []), 
         disco_info = proplists:get_value(disco_info, Conf, true),
@@ -580,26 +600,6 @@ unprepare_id([]) -> [];
 unprepare_id([$x|T]) -> [$<|unprepare_id(T)];
 unprepare_id([$X|T]) -> [$>|unprepare_id(T)];
 unprepare_id([H|T]) -> [H|unprepare_id(T)].
-
--spec is_allowed( (set | get | error | result), NS::atom(), JID::jid(), State::#state{}) -> boolean().
-%@doc Check if is allowed the request (based on ACL lists).
-%@end
-is_allowed(Type, NS, {Node,Domain,Res}, State) when is_list(Domain) ->
-    is_allowed(Type, NS, {Node,list_to_binary(Domain),Res}, State);
-is_allowed(set, NS, {_, Domain, _}, #state{accessListSet=As}) ->
-    is_allowed(NS, Domain, As);
-is_allowed(get, NS, {_, Domain, _}, #state{accessListGet=Ag}) ->
-    is_allowed(NS, Domain, Ag).
-
--spec is_allowed( NS::atom(), Domain::string(), PList::list(binary()) ) -> boolean().
-%@hidden
-is_allowed(NS, Domain, PList) ->
-    case proplists:get_value(NS, PList) of
-        undefined ->
-            true;
-        List ->
-            lists:member(Domain, List)
-    end.
 
 %@hidden
 -type levels() :: emerg | alert | crit | err | warning | notice | info | debug.

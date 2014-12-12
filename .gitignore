@@ -15,3 +15,4 @@ rel/*node
 .project
 .settings
 *.sublime*
+eunit.coverage.xml
