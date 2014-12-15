@@ -110,7 +110,7 @@ notify_dropped_message(Type) ->
 notify_dropped_iq(Type, NS) ->
     notify(concat("iq_dropped_", concat(concat(Type, "_"), NS))).
 
--spec concat(S :: string() | atom() | binary(), A :: string() | atom() | binary()) -> atom().
+-spec concat(S :: string() | atom() | binary() | pid(), A :: string() | atom() | binary() | pid()) -> atom().
 
 concat(S, A) when is_binary(S) ->
     concat(binary_to_list(S), A);
@@ -121,7 +121,11 @@ concat(S, A) when is_atom(S) ->
 concat(S, A) when is_atom(A) ->
     concat(S, atom_to_list(A));
 concat(S, A) when is_list(S) andalso is_list(A) ->
-    erlang:list_to_atom(S ++ A).
+    erlang:list_to_atom(S ++ A);
+concat(S, A) when is_pid(S) ->
+    concat("PID", A);
+concat(S, A) when is_pid(A) ->
+    concat(S, "PID").
 
 
 -spec notify(Name :: string()) -> ok.
