@@ -1,0 +1,48 @@
+<functional>
+
+    <config>
+        <syslog name="ecomponent"/>
+        <servers>
+            <server name="default" type="active"/>
+        </servers>
+        <jid>ecomponent.test</jid>
+        <throttle active="false"/>
+        <processors>
+            <iq xmlns="default" type="mod" data="dummy"/>
+            <message type="mod" data="dummy"/>
+            <presence type="mod" data="dummy"/>
+        </processors>
+        <disco-info active="false"/>
+    </config>
+
+    <steps>
+        <step name="send ping" times="3" type="send">
+            <iq xmlns='jabber:client'
+                type='get'
+                to='alice.localhost'
+                id='test_bot'
+                from='bob@localhost/pc'>
+                <ping xmlns='urn:xmpp:ping'/>
+            </iq>
+        </step>
+
+        <step name="receive creation messages" type="receive">
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='alice.localhost'
+                to='bob@localhost/pc'/>
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='alice.localhost'
+                to='bob@localhost/pc'/>
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='alice.localhost'
+                to='bob@localhost/pc'/>
+        </step>
+    </steps>
+
+</functional>
