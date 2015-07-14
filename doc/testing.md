@@ -158,6 +158,11 @@ This system uses internally [`meck`](https://github.com/eproxus/meck) the call f
 
 The arity for the code defined should be the same that the function you want to replace (or mock-up).
 
+The `mockups` tag have the following attributes you can use to improve the use of the mocks:
+
+- *passthrough*: when you want to mock a module but not all the functions the module have, you can use this attribute setting as `true`.
+- *strict*: set this attribute to `true` if you need to mock a module that doesn't exists.
+
 ### Start and Stop Codes
 
 When you start the test you can execute a code to launch your system, or part of them, the part you want to test. The code should be prepared to be started by code and stopped in the same way. An example:
@@ -198,6 +203,20 @@ The steps should be executed in the order appears in the file. The log show the 
         type='result'
         id='test_bot2'
         from='ecomponent.test'/>
+</step>
+```
+
+You can add more than one stanza inside the step, all the stanzas should arrive (in whatever order) so, it's very useful if you want to receive more than one stanza and you don't know the order you'll receive them:
+
+```xml
+<step name="receive creation messages" type="receive">
+    <iq xmlns='jabber:client'
+        type='result'
+        id='test_bot2'
+        from='ecomponent.test'/>
+    <message type='chat' id='test_bot3' from='ecomponent.test'>
+    	<body>created!</body>
+    </message>
 </step>
 ```
 
