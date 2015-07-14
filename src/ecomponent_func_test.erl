@@ -222,6 +222,29 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
         true -> run_steps(Steps, Packet)
     end;
 
+run_steps([#step{name=Name,times=T,type='receive',stanza=[#xmlel{}|_]=Stanzas}=Step|Steps], _PrevPacket)    ->
+    ?debugFmt("~n++++++++++++++++++++ STEP (receive): ~s~n", [Name]),
+    ?debugFmt("Waiting for: ~n~p stanzas~n", [Stanzas]),
+    receive
+        NewStanza when is_record(NewStanza, xmlel) ->
+            ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
+            B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
+            % Check if stanza is in list of stanzas
+            NewStanzas = compare_stanzas(Stanzas, B),
+            case NewStanzas of
+                [] -> 
+                    if
+                        T > 1 -> run_steps([Step#step{times=T-1}|Steps], NewStanza);
+                        true -> run_steps(Steps, NewStanza)
+                    end;
+                _  ->
+                    run_steps([Step#step{stanza=NewStanzas}|Steps], _PrevPacket)
+            end
+    after Step#step.timeout ->
+        ?debugFmt("TIMEOUT!! we need to receive ~p stanzas~n", [Stanzas]),
+        throw(enostanza)
+    end;
+
 run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], _PrevPacket) ->
     ?debugFmt("~n++++++++++++++++++++ STEP (receive): ~s~n", [Name]),
     ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
@@ -469,14 +492,14 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
                 timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
                 idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
-        (#xmlel{children=[#xmlel{}=Child]}=Step) ->
+        (#xmlel{children=[#xmlel{}=Child|Childs]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
             #step{
                 name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
                 type=Type,
                 times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
                 timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
-                stanza=Child,
+                stanza=case length(Childs)>0 of true -> [Child | Childs]; false -> Child end,
                 idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
         (#xmlel{children=[#xmlcdata{}|_]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
@@ -560,3 +583,21 @@ to_str(Str) when is_list(Str) -> Str;
 to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
 to_str(Int) when is_integer(Int) -> integer_to_list(Int);
 to_str(Float) when is_float(Float) -> float_to_list(Float).
+
+-spec compare_stanzas(any_xml(), [any_xml(),...]) -> [any_xml(),...] | [].
+%@hidden
+compare_stanzas(B, Stanzas) ->
+    compare_stanzas(B, Stanzas, []).
+
+-spec compare_stanzas(any_xml(), [any_xml(),...], list()) -> [any_xml(),...] | [].
+
+compare_stanzas([], _B, _Acc)                       -> 
+    throw(eunknownstanza);
+compare_stanzas([#xmlel{}=Stanza|Stanzas], B, Acc) ->
+    A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
+    case catch compare_stanza(A, B) of
+        {'EXIT', _} -> 
+            compare_stanzas(Stanzas, B, [A|Acc]);
+        _           -> 
+            Acc ++ Stanzas
+    end.

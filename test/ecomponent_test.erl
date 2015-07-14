@@ -26,7 +26,8 @@ setup_test_() ->
             multiconnection_test(Config),
             processor_iq_test(Config),
             processor_message_test(Config),
-            processor_presence_test(Config)
+            processor_presence_test(Config),
+            multiping_test(Config)
         ] end
     }.
 
@@ -242,4 +243,8 @@ processor_message_test(_Config) ->
 
 processor_presence_test(_Config) ->
     ecomponent_func_test:run("processor_presence_test"),
+    ?_assert(true).
+
+multiping_test(_Config) ->
+    ecomponent_func_test:run("multiping_test"),
     ?_assert(true).
