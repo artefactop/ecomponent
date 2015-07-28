@@ -406,6 +406,27 @@ parse_throttle(#xmlel{name='throttle'}=Config) ->
     [{throttle, binary_to_atom(
         exmpp_xml:get_attribute(Config, <<"active">>, <<"true">>), utf8)}].
 
+-type parse_acl_ret() :: [ {access_list_get | access_list_set, [binary()]} ].
+ 
+-spec parse_acl(exmpp_xml:xmlel()) -> parse_acl_ret().
+%@hidden
+parse_acl(#xmlel{name='access-list-get'}=Config) ->
+    parse_acl({Config, access_list_get});
+parse_acl(#xmlel{name='access-list-set'}=Config) ->
+    parse_acl({Config, access_list_set}); 
+parse_acl({#xmlel{name=_Name, children=Acls}=Config, AclType}) ->
+    lists:foldl(fun
+        (#xmlel{name='iq', ns=NS}, [{Type,A}]) ->
+            Acl = case exmpp_xml:get_path(Config, [{element, 'iq'}]) of
+                      #xmlel{children=Items} ->
+                          lists:map(fun(#xmlel{name='item'}=X) ->
+                              exmpp_xml:get_attribute(X, <<"value">>, <<>>)
+                          end, Items);
+                      _ -> [] 
+                  end,
+            [{Type, A ++ [{NS, Acl}]}]   
+    end, [{AclType, []}], Acls).
+
 -type server_config() :: {atom(), [
     {server, string()} | {port, pos_integer()} |
     {secret, string()} | {type, active | passive}
@@ -458,6 +479,10 @@ parse(#xmlel{name=config, children=Configs}) ->
             [{jid, binary_to_list(exmpp_xml:get_cdata(Config))}];
         (#xmlel{name='throttle'}=Config) ->
             parse_throttle(Config);
+        (#xmlel{name='access-list-set'}=Config) ->
+            parse_acl(Config);
+        (#xmlel{name='access-list-get'}=Config) ->
+            parse_acl(Config);
         (#xmlel{name='processors',children=Processors}) ->
             lists:flatten(parse_processors(Processors));
         (#xmlel{name='disco-info'}=Config) ->
