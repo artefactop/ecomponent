@@ -313,8 +313,10 @@ compare_stanza(
             ?debugFmt("expected: ~p~n", [B]),
             ?assertEqual(A,B)
     end, lists:zip(AttrsA, AttrsB)),
-    ChildrenA = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children1]),
-    ChildrenB = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children2]),
+    Children1A = case Children1 of [C1] when is_list(C1) -> C1; C1 -> C1 end,
+    Children2B = case Children2 of [C2] when is_list(C2) -> C2; C2 -> C2 end,
+    ChildrenA = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children1A]),
+    ChildrenB = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children2B]),
     case length(ChildrenA) == length(ChildrenB) of
         true -> ok;
         false -> throw({children_length, [{children1, ChildrenA}, {children2, ChildrenB}]})
