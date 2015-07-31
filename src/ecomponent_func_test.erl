@@ -601,7 +601,8 @@ bin_to_type(<<"receive">>) -> 'receive';
 bin_to_type(<<"code">>) -> 'code';
 bin_to_type(<<"store">>) -> 'store';
 bin_to_type(<<"quiet">>) -> 'quiet';
-bin_to_type(_) -> 'send'.
+bin_to_type(<<"send">>) -> 'send';
+bin_to_type(_) -> throw(invalid_step_type).
 
 -spec to_str(Any::any()) -> string().
 
