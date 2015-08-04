@@ -66,7 +66,7 @@ handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
     {noreply, State};
 
 handle_info({send, Packet}, #state{xmppCom=XmppCom}=State) ->
-    exmpp_component:send_packet(XmppCom, Packet),
+    exmpp_session:send_packet(XmppCom, Packet),
     {noreply, State};
 
 handle_info({_, tcp_closed}, #state{jid=JID, server=Server, pass=Pass, port=Port}=State) ->
@@ -109,7 +109,7 @@ handle_cast(_Msg, State) ->
 
 handle_call(stop, _From, #state{xmppCom=XmppCom}=State) ->
     lager:info("Component Stopped.~n",[]),
-    exmpp_component:stop(XmppCom),
+    exmpp_session:stop(XmppCom),
     {stop, normal, ok, State};
 
 handle_call(Info, _From, State) ->
@@ -136,20 +136,22 @@ code_change(_OldVsn, State, _Extra) ->
 -spec make_connection(JID::string(), Pass::string(), Server::string(), Port::integer()) -> {R::string(), XmppCom::pid()}.
 
 make_connection(JID, Pass, Server, Port) -> 
-    XmppCom = exmpp_component:start(),
+    XmppCom = exmpp_session:start(),
     make_connection(XmppCom, JID, Pass, Server, Port, 20).
     
 -spec make_connection(XmppCom::pid(), JID::ecomponent:jid(), Pass::string(), Server::string(), Port::integer(), Tries::integer()) -> {string(), pid()}.    
 
 make_connection(XmppCom, JID, Pass, Server, Port, 0) -> 
-    exmpp_component:stop(XmppCom),
+    exmpp_session:stop(XmppCom),
     make_connection(JID, Pass, Server, Port);
 make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
     lager:info("Connecting: ~p Tries Left~n",[Tries]),
-    exmpp_component:auth(XmppCom, JID, Pass),
-    try exmpp_component:connect(XmppCom, Server, Port) of
+    [User, SServer] = string:tokens(JID, "@"),
+    MyJID = exmpp_jid:make(User, Server, random),
+    exmpp_session:auth_basic_digest(XmppCom, MyJID, Pass),
+    try exmpp_session:connect_TCP(XmppCom, SServer, Port) of
         R -> 
-            exmpp_component:handshake(XmppCom),
+            exmpp_session:login(XmppCom),
             lager:info("Connected.~n",[]),
             {R, XmppCom}
     catch
