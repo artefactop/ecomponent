@@ -60,8 +60,10 @@ init([ID, JID, Conf]) ->
     {stop, Reason::any(), State::#state{}}.
 
 handle_info(#received_packet{from=To,id=ID}=ReceivedPacket, State) ->
+    lager:debug("Received ~p ~p~n ", [ID, ReceivedPacket]),
     ToBin = exmpp_jid:bare_to_binary(exmpp_jid:make(To)),
-    timem:insert({ID, ToBin}, State#state.id),
+    IDBin = erlang:list_to_binary(ID),
+    timem:insert({IDBin, ToBin}, State#state.id),
     ecomponent ! {ReceivedPacket, State#state.id},
     {noreply, State};
 
@@ -147,7 +149,7 @@ make_connection(XmppCom, JID, Pass, Server, Port, 0) ->
 make_connection(XmppCom, JID, Pass, Server, Port, Tries) ->
     lager:info("Connecting: ~p Tries Left~n",[Tries]),
     [User, SServer] = string:tokens(JID, "@"),
-    MyJID = exmpp_jid:make(User, Server, random),
+    MyJID = exmpp_jid:make(User, Server, "econ"),
     exmpp_session:auth_basic_digest(XmppCom, MyJID, Pass),
     try exmpp_session:connect_TCP(XmppCom, SServer, Port) of
         R -> 

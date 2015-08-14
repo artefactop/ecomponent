@@ -33,7 +33,7 @@
 }).
 
 -record(timem, {
-    id :: string(),
+    id :: binary(),
     packet :: term(),
     timestamp :: integer()
 }).

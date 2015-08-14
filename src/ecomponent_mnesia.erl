@@ -15,10 +15,11 @@ init(Conf) ->
 
 init([], Callbacks) ->
     mnesia:create_schema([node()]),
-    mnesia:change_table_copy_type(schema, node(), disc_copies), 
+    mnesia:change_table_copy_type(schema, node(), ram_copies), 
     mnesia:start(),
     mnesia:create_table(monitor, [{attributes, record_info(fields, monitor)}]),
-    mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+    R = mnesia:create_table(timem, [{attributes, record_info(fields, timem)}]),
+    lager:info("Starting mnesia... ~p ~n", [R]),
     lists:foreach(fun({Mod,Fun,Args}) ->
         lists:foreach(fun({Table, Type, Fields}) ->
             Res = mnesia:create_table(Table, [{attributes, Fields}]),
@@ -35,7 +36,7 @@ init([Node|Nodes], Callbacks) ->
             mnesia:create_schema([node()]),
             mnesia:start(),
             mnesia:change_config(extra_db_nodes, [Node]),
-            mnesia:change_table_copy_type(schema, node(), disc_copies), 
+            mnesia:change_table_copy_type(schema, node(), ram_copies), 
             mnesia:add_table_copy(monitor, node(), ram_copies),
             mnesia:add_table_copy(timem, node(), ram_copies), 
             lists:foreach(fun({Mod,Fun,Args}) ->

@@ -8,21 +8,26 @@
 -spec insert(K::binary(), V::term()) -> boolean().
     
 insert(K, V) ->
+    lager:debug("Inserting ~p ~p ~n", [K, V]),
     case mnesia:transaction(fun() ->
         mnesia:write(#timem{id=K, packet=V, timestamp=tm(now())})
     end) of
         {atomic, ok} -> true;
-        _ -> false
+        _Reason -> 
+            lager:info("Could NOT get Transaction: ~p~n",[_Reason]),
+            false
     end.
 
 -spec remove(K::binary()) -> {K::binary(), V::term()} | undefined.
 
 remove(K) ->
+    lager:debug("Removing... ~p ~n", [K]), 
     case mnesia:transaction(fun() ->
         case mnesia:read({timem, K}) of
             [] ->
                 undefined;
             [R|_] ->
+                lager:debug("Removed... ~p ~p~n", [K, R]),
                 mnesia:delete_object(R),
                 {K, R#timem.packet}
         end

@@ -466,14 +466,20 @@ save_id(Id, NS, Packet, App) ->
     save_id(N).
 
 -spec save_id(N::#matching{}) -> #matching{} | ok.
+
+
     
-save_id(#matching{id=Id, processor=App}=N) ->
+save_id(#matching{id=Id, processor=App}=N) when is_binary(Id)->
     case timem:insert(Id, N) of
         true ->
             N;
-        _ ->
-            lager:error("Error writing id ~s, processor ~p on timem, reason: ~p", [Id, App])
-    end.
+        _R ->
+            lager:error("Error writing id ~p, processor ~p on timem, reason: ~p ~n", [Id, App, _R])
+    end;
+save_id(#matching{id=ID}=N) ->
+    IDBin = erlang:list_to_binary(ID),
+    NN = N#matching{id = IDBin},
+    save_id(NN).
 
 -spec get_processor(Id::binary()) -> #matching{} | undefined.
 
