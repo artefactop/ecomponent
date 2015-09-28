@@ -132,6 +132,22 @@ The first you need to do is configure the ecomponent for launch the test. The co
 
 * `disco-info`: is present as will sent to clients, but the main tag can be setted with its attribute `active` as `true` or `false`. If you set the `active` attribute as `false` you can leave empty the `disco-info` tag.
 
+* `access-list-get` and `access-list-set`: is used when you want block incoming stanzas from client (set or get) with a specific jid. You must specify the iq NS and its childs are a list of items blocked, example:
+
+```xml
+<!-- a full example -->
+<access-list-get>
+    <iq xmlns="urn:itself">
+        <item value="alice@localhost"/>
+    </iq>
+</access-list-get>
+<access-list-set>
+    <iq xmlns="urn:itself">
+        <item value="alice.localhost"/>
+    </iq>
+</access-list-set>
+```
+
 ### Mock-ups
 
 The code to be tested can be using a database or an external connection or something that could be not available in the test environment. The mock-up help simulating the calls to this elements and give always the same response.
