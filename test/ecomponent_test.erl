@@ -28,7 +28,7 @@ setup_test_() ->
             processor_message_test(Config),
             processor_presence_test(Config),
             multiping_test(Config),
-            ping_acl_test(Config)
+            forward_acl_ns_in_set_test(Config)
         ] end
     }.
 
@@ -250,6 +250,6 @@ multiping_test(_Config) ->
     ecomponent_func_test:run("multiping_test"),
     ?_assert(true).
 
-ping_acl_test(_Config) ->
-    ecomponent_func_test:run("ping_acl_test"),
+forward_acl_ns_in_set_test(_Config) ->
+    ecomponent_func_test:run("forward_acl_ns_in_set_test"),
     ?_assert(true).
