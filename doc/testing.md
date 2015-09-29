@@ -132,7 +132,7 @@ The first you need to do is configure the ecomponent for launch the test. The co
 
 * `disco-info`: is present as will sent to clients, but the main tag can be setted with its attribute `active` as `true` or `false`. If you set the `active` attribute as `false` you can leave empty the `disco-info` tag.
 
-* `access-list-get` and `access-list-set`: is used when you want block incoming stanzas from client (set or get) with a specific jid. You must specify the iq NS and its childs are a list of items blocked, example:
+* `access-list-get` and `access-list-set`: is used when you want block incoming stanzas from client (set or get) with a specific jid. You must specify the iq NS and its children are a list of items blocked, example:
 
 ```xml
 <!-- a full example -->
