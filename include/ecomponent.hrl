@@ -30,7 +30,7 @@
 -record(monitor, {
     id :: string(),
     counter = 0 :: integer(),
-    timestamp = now() :: erlang:timestamp()
+    timestamp = os:timestamp() :: erlang:timestamp()
 }).
 
 -record(timem, {
