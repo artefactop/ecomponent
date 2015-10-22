@@ -21,7 +21,7 @@ check(Test) ->
     Timeout :: pos_integer()) -> {timeout, integer(), function()}.
 %@doc Execute the suite for the list of tests passed as param. This function
 %     set the environment and run all the tests in the list. As second param
-%     you can configure the timeout for the suite of tests.
+%     you can configure the timeout (in seconds) for the suite of tests.
 %@end
 check(Test, Timeout) ->
     check(Test, Timeout, false).
@@ -32,34 +32,43 @@ check(Test, Timeout) ->
     Verbose :: boolean()) -> {timeout, integer(), function()}.
 %@doc Execute the suite for the list of tests passed as param. This function
 %     set the environment and run all the tests in the list. As second param
-%     you can configure the timeout for the suite of tests and as third
-%     param you can set if you want to show all the logs (lager and syslog)
-%     or not.
+%     you can configure the timeout (in seconds) for the suite of tests and
+%     as third param you can set if you want to show all the logs (lager and
+%     syslog) or not.
 %@end
 check(Tests, Timeout, Verbose) ->
-    {timeout, Timeout, ?_assert(begin
-        net_kernel:start([ecomponent@localhost, shortnames]),
-        timer:sleep(1000),
-        mnesia:start(),
-        ?meck_lager(Verbose),
-        ?meck_syslog(Verbose),
-        ?meck_component(),
-        ?meck_metrics(),
-        ?run_exmpp(),
-        [ run(Test) || Test <- Tests ],
-        mnesia:stop(),
-        unmock(),
-        net_kernel:stop(),
-        true
-    end)}.
+    {timeout, Timeout,
+        {setup,
+            fun() -> start_suite(Verbose) end,
+            fun(_) -> stop_suite() end,
+            [ run(Test) || Test <- Tests ]
+        }
+    }.
+
+start_suite(Verbose) ->
+    net_kernel:start([ecomponent@localhost, shortnames]),
+    timer:sleep(1000),
+    mnesia:start(),
+    ?meck_lager(Verbose),
+    ?meck_syslog(Verbose),
+    ?meck_component(),
+    ?meck_metrics(),
+    ?run_exmpp(),
+    ok.
+
+stop_suite() ->
+    mnesia:stop(),
+    unmock(),
+    net_kernel:stop(),
+    ok.
 
 -spec run(Test :: string()) -> ok.
 %@doc Run a single test. This function runs a single test without prepare
 %     the environment.
 %@end
 run(Test) ->
-    ?debugFmt("~n~n~n******************** Check Functional Test: ~p~n~n", [Test]),
-    {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
+    {Test, {spawn, {setup,
+    fun() ->
         Functional = parse_file(Test),
         %% TODO: add mnesia clustering options
         Config = Functional#functional.config ++ [
@@ -79,31 +88,24 @@ run(Test) ->
         {ok, _} = ecomponent_acl:start_link(),
         JID = proplists:get_value(jid, Config, "ecomponent.bot"),
         lists:foreach(fun({Name, AtomicServerConf}) ->
-            {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID, AtomicServerConf)
+            {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID,
+                AtomicServerConf)
         end, proplists:get_value(servers, Config, [])),
 
         (Functional#functional.start)(),
-
-        run_steps(Functional#functional.steps),
-
+        Functional
+    end,
+    fun(Functional) ->
         (Functional#functional.stop)(),
 
         ecomponent:stop(),
         ecomponent_acl:stop(),
-        unmock(Functional#functional.mockups)
-    end),
-    receive 
-        {'DOWN',ProcessRef,process,ProcessPID,normal} ->
-            ?debugFmt("~n**********========== Test OK~n~n", []),
-            ok;
-        {'DOWN',ProcessRef,process,ProcessPID,Reason} -> 
-            ?debugFmt("DIE: ~p~n", [Reason]),
-            throw(eprocdie)
-    after 8000 ->
-        ?debugFmt("test process frozen?!?~n", []),
-        throw(enoresponse)
+        unmock(Functional#functional.mockups),
+        ok
     end,
-    ok.
+    fun(Functional) ->
+        run_steps(Functional#functional.steps)
+    end}}}.
 
 -spec parse_file(Test :: string()) -> functional().
 %@hidden
@@ -168,36 +170,35 @@ unmock() ->
     meck:unload(),
     ok.
 
--spec run_steps(Steps :: [step()]) -> ok.
+-spec run_steps(Steps :: [step()]) -> [term()].
 %@hidden
 run_steps(Steps) ->
-    run_steps(Steps, undefined).
+    run_steps(Steps, undefined, []).
 
--spec run_steps(Steps :: [step()], PrevPacket :: exmpp_xml:xmlel()) -> ok.
+-spec run_steps(Steps :: [step()], PrevPacket :: exmpp_xml:xmlel(), [term()]) -> [term()].
 %@hidden
-run_steps([],_) ->
-    ok;
+run_steps([],_,Tests) ->
+    Tests;
 
-run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket) ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (code): ~s~n~n", [Name]),
-    Fun(PrevPacket, self()),
+run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"step (code): " ++ Name, Fun(PrevPacket, self())}],
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
-        true -> run_steps(Steps, PrevPacket)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
     end;
 
-run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (store): ~s~n", [Name]),
-    ?debugFmt("Store: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"step (store): " ++ Name, fun() ->
+        ?debugFmt("Store: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+        true
+    end}],
     %% TODO: check stanza for replace vars {{whatever}}
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
-        true -> run_steps(Steps, Stanza)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza, NewTests);
+        true -> run_steps(Steps, Stanza, NewTests)
     end;
 
-run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (send): ~s~n", [Name]),
-    ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=Step|Steps], _PrevPacket, Tests) ->
     #xmlel{name=PacketType} = Stanza,
     DefaultType = case PacketType of
         iq -> enotype;
@@ -215,77 +216,85 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
             FromJID#jid.domain,
             FromJID#jid.resource}
     },
-    ?assertNotEqual(undefined, whereis(ecomponent)),
-    ecomponent ! {Packet, ServerID},
-    if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Packet);
-        true -> run_steps(Steps, Packet)
-    end;
-
-run_steps([#step{name=Name,times=T,type='receive',stanza=[#xmlel{}|_]=Stanzas}=Step|Steps], _PrevPacket)    ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (receive): ~s~n", [Name]),
-    ?debugFmt("Waiting for: ~n~p stanzas~n", [Stanzas]),
-    receive
-        NewStanza when is_record(NewStanza, xmlel) ->
-            ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
-            B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
-            % Check if stanza is in list of stanzas
-            NewStanzas = compare_stanzas(Stanzas, B),
-            case NewStanzas of
-                [] -> 
-                    if
-                        T > 1 -> run_steps([Step#step{times=T-1}|Steps], NewStanza);
-                        true -> run_steps(Steps, NewStanza)
-                    end;
-                _  ->
-                    run_steps([Step#step{stanza=NewStanzas}|Steps], _PrevPacket)
-            end
-    after Step#step.timeout ->
-        ?debugFmt("TIMEOUT!! we need to receive ~p stanzas~n", [Stanzas]),
-        throw(enostanza)
-    end;
-
-run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (receive): ~s~n", [Name]),
-    ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
-    receive
-        NewStanza when is_record(NewStanza, xmlel) ->
-            ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
-            A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
-            B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
-            compare_stanza(A, B);
-        Other ->
-            ?debugFmt("Received: ~n~p~n", [Other]),
-            throw(ewrongstanza)
-    after Step#step.timeout ->
-        ?debugFmt("TIMEOUT!!! we need to receive ~p~n", [Stanza]),
-        throw(enostanza)
-    end,
-    if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
-        true -> run_steps(Steps, Stanza)
-    end;
-
-run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket) ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (code receive): ~s~n~n", [Name]),
-    Fun(PrevPacket, self()),
-    if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
-        true -> run_steps(Steps, PrevPacket)
-    end;
-
-run_steps([#step{name=Name,times=T,type='quiet'}=Step|Steps], PrevPacket) ->
-    ?debugFmt("~n++++++++++++++++++++ STEP (quiet): ~s~n~n", [Name]),
-    receive
-        Something ->
-            ?debugFmt("NOT QUIET!!! ~p~n", [Something]),
-            throw(Something)
-    after Step#step.timeout ->
+    NewTests = Tests ++ [{"step (send): " ++ Name, fun() ->
+        ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+        ?assertNotEqual(undefined, whereis(ecomponent)),
+        ecomponent ! {Packet, ServerID},
         ok
-    end,
+    end}],
+    if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Packet, NewTests);
+        true -> run_steps(Steps, Packet, NewTests)
+    end;
+
+run_steps([#step{name=Name,times=T,type='receive',stanza=[#xmlel{}|_]=Stanzas}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"step (receive): " ++ Name, fun() ->
+        ?debugFmt("Waiting for: ~n~p stanzas~n", [Stanzas]),
+        receive
+            NewStanza when is_record(NewStanza, xmlel) ->
+                ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
+                B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
+                % Check if stanza is in list of stanzas
+                case compare_stanzas(Stanzas, B) of
+                    [] ->
+                        ok;
+                    RestStanzas  ->
+                        run_steps([Step#step{stanza=RestStanzas}|Steps], PrevPacket, Tests),
+                        ok
+                end
+        after Step#step.timeout ->
+            ?debugFmt("TIMEOUT!! we need to receive ~p stanzas~n", [Stanzas]),
+            throw(enostanza)
+        end
+    end}],
     if
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
-        true -> run_steps(Steps, PrevPacket)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
+    end;
+
+
+run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"step (receive): ~s~n" ++ Name, fun() ->
+        ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+        receive
+            NewStanza when is_record(NewStanza, xmlel) ->
+                ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
+                A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
+                B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
+                compare_stanza(A, B);
+            Other ->
+                ?debugFmt("Received: ~n~p~n", [Other]),
+                throw(ewrongstanza)
+        after Step#step.timeout ->
+            ?debugFmt("TIMEOUT!!! we need to receive ~p~n", [Stanza]),
+            throw(enostanza)
+        end
+    end}],
+    if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
+    end;
+
+run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"step (code receive): " ++ Name, Fun(PrevPacket, self())}],
+    if 
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
+    end;
+
+run_steps([#step{name=Name,times=T,type='quiet'}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"step (quiet): " ++ Name, fun() ->
+        receive
+            Something ->
+                ?debugFmt("NOT QUIET!!! ~p~n", [Something]),
+                throw(Something)
+        after Step#step.timeout ->
+            ok
+        end
+    end}],
+    if
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
     end.
 
 -type any_xml() :: exmpp_xml:xmlel() | exmpp_xml:xmlcdata().
@@ -605,27 +614,27 @@ bin_to_type(<<"send">>) -> 'send';
 bin_to_type(_) -> throw(invalid_step_type).
 
 -spec to_str(Any::any()) -> string().
-
+%@hidden
 to_str(Bin) when is_binary(Bin) -> binary_to_list(Bin);
 to_str(Str) when is_list(Str) -> Str;
 to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
 to_str(Int) when is_integer(Int) -> integer_to_list(Int);
 to_str(Float) when is_float(Float) -> float_to_list(Float).
 
--spec compare_stanzas(any_xml(), [any_xml(),...]) -> [any_xml(),...] | [].
+-spec compare_stanzas(any_xml(), [any_xml()]) -> [any_xml()] | [].
 %@hidden
 compare_stanzas(B, Stanzas) ->
     compare_stanzas(B, Stanzas, []).
 
--spec compare_stanzas(any_xml(), [any_xml(),...], list()) -> [any_xml(),...] | [].
+-spec compare_stanzas(any_xml(), [any_xml()], list()) -> [any_xml()] | [].
 
-compare_stanzas([], _B, _Acc)                       -> 
+compare_stanzas([], _B, _Acc) ->
     throw(eunknownstanza);
 compare_stanzas([#xmlel{}=Stanza|Stanzas], B, Acc) ->
     A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
     case catch compare_stanza(A, B) of
-        {'EXIT', _} -> 
+        {'EXIT', _} ->
             compare_stanzas(Stanzas, B, [A|Acc]);
-        _           -> 
+        _           ->
             Acc ++ Stanzas
     end.
