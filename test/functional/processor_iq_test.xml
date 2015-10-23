@@ -22,11 +22,9 @@
                 <query xmlns='whatever'/>
             </iq>
         </step>
-        <step name="checks" type="code"><![CDATA[
-            default = gen_server:call(ecomponent_con, get_pool),
-            default = gen_server:call(ecomponent_con, get_pool),
-            true = ecomponent_con:is_active(default)
-        ]]></step>
+        <step name="checks" type="code">
+            <code module="processor_fake" function="check_pool"/>
+        </step>
         <step name="feature-not-implemented error" type="receive">
             <iq xmlns='jabber:client'
                 type='error'

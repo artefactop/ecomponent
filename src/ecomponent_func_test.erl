@@ -588,12 +588,11 @@ parse(#xmlel{name=steps, children=Steps}) ->
             Times = exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>),
             M = binary_to_atom(exmpp_xml:get_attribute(Child, <<"module">>, undefined), utf8),
             F = binary_to_atom(exmpp_xml:get_attribute(Child, <<"function">>, undefined), utf8),
-            A = binary_to_integer(exmpp_xml:get_attribute(Child, <<"arity">>, <<"0">>)),
             #step{
                 name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
                 type=Type,
                 times=bin_to_integer(Times),
-                stanza=fun M:F/A};
+                stanza=fun M:F/2};
         (#xmlel{children=[#xmlel{}=Child|Childs]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
             #step{

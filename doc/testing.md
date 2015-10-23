@@ -332,7 +332,7 @@ or:
 <step name="update save_id" type="code" module="myapp_test" function="save_id"/>
 ```
 
-The function `save_id/1` should exists in the `myapp_test` module.
+The function `save_id/2` should exists in the `myapp_test` module. The params passed to the function are the previous packet (last XML stanza if there was or `undefined` instead) and the PID.
 
 #### quiet
 
