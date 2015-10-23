@@ -67,45 +67,47 @@ stop_suite() ->
 %     the environment.
 %@end
 run(Test) ->
-    {Test, {spawn, {setup,
+    {" ** TEST => " ++ Test, {spawn, {setup,
     fun() ->
-        Functional = parse_file(Test),
-        %% TODO: add mnesia clustering options
-        Config = Functional#functional.config ++ [
-            {mnesia_nodes, [node()]},
-            {mnesia_callback, []}
-        ],
-        %% TODO: launch slaves depend on cluster configuration
-        ?debugFmt("config = ~p~n", [Config]),
-        ?meck_config(Config),
-        PID = self(),
-        meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-            PID ! P
-        end),
-        mock(Functional#functional.mockups, Functional#functional.mock_opts),
-
-        {ok, _} = ecomponent:start_link(),
-        {ok, _} = ecomponent_acl:start_link(),
-        JID = proplists:get_value(jid, Config, "ecomponent.bot"),
-        lists:foreach(fun({Name, AtomicServerConf}) ->
-            {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID,
-                AtomicServerConf)
-        end, proplists:get_value(servers, Config, [])),
-
-        (Functional#functional.start)(),
-        Functional
+        parse_file(Test)
     end,
     fun(Functional) ->
-        (Functional#functional.stop)(),
+        [{"start", fun() ->
+            start_config_and_mocks(Functional),
+            (Functional#functional.start)(self())
+        end}] ++
+        run_steps(Functional#functional.steps) ++
+        [{"stop", fun() ->
+            (Functional#functional.stop)(self()),
+            stop_and_unmock(Functional)
+        end}]
+    end
+    }}}.
 
-        ecomponent:stop(),
-        ecomponent_acl:stop(),
-        unmock(Functional#functional.mockups),
-        ok
-    end,
-    fun(Functional) ->
-        run_steps(Functional#functional.steps)
-    end}}}.
+start_config_and_mocks(Functional) ->
+    %% TODO: add mnesia clustering options
+    Config = Functional#functional.config ++ [
+        {mnesia_nodes, [node()]},
+        {mnesia_callback, []}
+    ],
+    %% TODO: launch slaves depend on cluster configuration
+    ?meck_config(Config),
+    mock(Functional#functional.mockups, Functional#functional.mock_opts),
+
+    {ok, _} = ecomponent:start_link(),
+    {ok, _} = ecomponent_acl:start_link(),
+    JID = proplists:get_value(jid, Config, "ecomponent.bot"),
+    lists:foreach(fun({Name, AtomicServerConf}) ->
+        {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID,
+            AtomicServerConf)
+    end, proplists:get_value(servers, Config, [])),
+    ok.
+
+stop_and_unmock(Functional) ->
+    ecomponent:stop(),
+    ecomponent_acl:stop(),
+    unmock(Functional#functional.mockups),
+    ok.
 
 -spec parse_file(Test :: string()) -> functional().
 %@hidden
@@ -138,7 +140,6 @@ parse_file(Test) ->
 mock(Mockups,Opts) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
-        ?debugFmt("meck:new(~p, ~p).~n", [M,Opts]),
         case catch meck:new(M, Opts) of
             {'EXIT',{{already_started,_},_}} -> ok;
             ok -> ok;
@@ -151,8 +152,7 @@ mock(Mockups,Opts) when is_list(Mockups) ->
 -spec mock_functions(mockup()) -> ok.
 %@hidden
 mock_functions(#mockup{module=M,function=F,code=Code}) ->
-    ?debugFmt("mockup ~p:~p~n", [M,F]),
-    meck:expect(M, F, Code),
+    meck:expect(M, F, Code(self())),
     ok.
 
 -spec unmock(Mockups :: [mockup()]) -> ok.
@@ -181,15 +181,21 @@ run_steps([],_,Tests) ->
     Tests;
 
 run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket, Tests) ->
-    NewTests = Tests ++ [{"step (code): " ++ Name, Fun(PrevPacket, self())}],
+    NewTests = Tests ++ [{"code: " ++ to_str(Name),
+        fun() ->
+            PID = self(),
+            meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+                PID ! P
+            end),
+            Fun(PrevPacket, PID)
+        end}],
     if 
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
         true -> run_steps(Steps, PrevPacket, NewTests)
     end;
 
 run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket, Tests) ->
-    NewTests = Tests ++ [{"step (store): " ++ Name, fun() ->
-        ?debugFmt("Store: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+    NewTests = Tests ++ [{"store: " ++ to_str(Name), fun() ->
         true
     end}],
     %% TODO: check stanza for replace vars {{whatever}}
@@ -216,8 +222,11 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
             FromJID#jid.domain,
             FromJID#jid.resource}
     },
-    NewTests = Tests ++ [{"step (send): " ++ Name, fun() ->
-        ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+    NewTests = Tests ++ [{"send: " ++ to_str(Name), fun() ->
+        PID = self(),
+        meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+            PID ! P
+        end),
         ?assertNotEqual(undefined, whereis(ecomponent)),
         ecomponent ! {Packet, ServerID},
         ok
@@ -228,11 +237,9 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
     end;
 
 run_steps([#step{name=Name,times=T,type='receive',stanza=[#xmlel{}|_]=Stanzas}=Step|Steps], PrevPacket, Tests) ->
-    NewTests = Tests ++ [{"step (receive): " ++ Name, fun() ->
-        ?debugFmt("Waiting for: ~n~p stanzas~n", [Stanzas]),
+    NewTests = Tests ++ [{"receive: " ++ to_str(Name), fun() ->
         receive
             NewStanza when is_record(NewStanza, xmlel) ->
-                ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
                 B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
                 % Check if stanza is in list of stanzas
                 case compare_stanzas(Stanzas, B) of
@@ -254,11 +261,9 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=[#xmlel{}|_]=Stanzas}=S
 
 
 run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], PrevPacket, Tests) ->
-    NewTests = Tests ++ [{"step (receive): ~s~n" ++ Name, fun() ->
-        ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+    NewTests = Tests ++ [{"receive: " ++ to_str(Name), fun() ->
         receive
             NewStanza when is_record(NewStanza, xmlel) ->
-                ?debugFmt("Received: ~n~s~n", [exmpp_xml:document_to_binary(NewStanza)]),
                 A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
                 B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
                 compare_stanza(A, B);
@@ -270,20 +275,24 @@ run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|S
             throw(enostanza)
         end
     end}],
-    if 
+    if
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
         true -> run_steps(Steps, PrevPacket, NewTests)
     end;
 
 run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket, Tests) ->
-    NewTests = Tests ++ [{"step (code receive): " ++ Name, Fun(PrevPacket, self())}],
-    if 
+    NewTests = Tests ++ [{"code receive: " ++ to_str(Name),
+        fun() -> 
+            Fun(PrevPacket, self())
+        end
+    }],
+    if
         T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
         true -> run_steps(Steps, PrevPacket, NewTests)
     end;
 
 run_steps([#step{name=Name,times=T,type='quiet'}=Step|Steps], PrevPacket, Tests) ->
-    NewTests = Tests ++ [{"step (quiet): " ++ Name, fun() ->
+    NewTests = Tests ++ [{"quiet: " ++ to_str(Name), fun() ->
         receive
             Something ->
                 ?debugFmt("NOT QUIET!!! ~p~n", [Something]),
@@ -561,14 +570,13 @@ parse(#xmlel{name=steps, children=Steps}) ->
 -spec bin_to_code(general | steps | mockup, binary()) -> function().
 %@hidden
 bin_to_code(general, B) ->
-    bin_to_code(<<"fun() -> ", B/binary, " end.">>);
+    bin_to_code(<<"fun(PID) -> ", B/binary, " end.">>);
 
 bin_to_code(steps, B) ->
     bin_to_code(<<"fun(Packet, PID) -> ", B/binary, " end.">>);
 
 bin_to_code(mockup, B) ->
-    GenFun = bin_to_code(<<"fun(PID) -> fun", B/binary, " end end.">>),
-    GenFun(self()).
+    bin_to_code(<<"fun(PID) -> fun", B/binary, " end end.">>).
 
 -type attribute() :: {attribute, pos_integer(), record, RecordDef::term()}.
 

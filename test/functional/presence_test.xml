@@ -24,12 +24,12 @@
     </mockups>
 
     <steps>
-        <step name="send presence to ecomponent" type="send">
+        <step name="presence to ecomponent" type="send">
             <presence xmlns='jabber:client' 
                       to='alice.localhost' 
                       id='test_bot'/>
         </step>
-        <step name="receive presence" type="receive"><![CDATA[
+        <step name="presence" type="receive"><![CDATA[
             #presence{xmlel=_Xmlel}
         ]]></step>
     </steps>

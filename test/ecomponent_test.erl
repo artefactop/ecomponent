@@ -11,22 +11,24 @@ setup_test_() ->
         fun (Config) -> [
             access_list_get_test(Config), 
             access_list_set_test(Config),
+            coutdown_test(Config),
             config_test(Config), 
+
+            processor_iq_test(Config),
+            processor_message_test(Config),
+            processor_presence_test(Config),
+
+            save_id_expired_test(Config), 
             disco_muted_test(Config),
             ping_test(Config), 
             disco_test(Config), 
             disco_info_test(Config),
             forward_response_module_test(Config),
             forward_ns_in_set_test(Config), 
-            save_id_expired_test(Config), 
-            coutdown_test(Config),
             message_test(Config), 
             presence_test(Config), 
             sync_send_test(Config),
             multiconnection_test(Config),
-            processor_iq_test(Config),
-            processor_message_test(Config),
-            processor_presence_test(Config),
             multiping_test(Config),
             forward_acl_ns_in_set_test(Config)
         ] end
@@ -163,46 +165,6 @@ config_test(_Config) ->
         syslogFacility = local7,
         syslogName = "ecomponent"}, State).
 
-disco_muted_test(_Config) ->
-    ecomponent_func_test:run("disco_muted_test"),
-    ?_assert(true).
-
-ping_test(_Config) ->
-    ecomponent_func_test:run("ping_test"),
-    ?_assert(true).
-
-message_test(_Config) ->
-    ecomponent_func_test:run("message_test"),
-    ?_assert(true).
-
-presence_test(_Config) ->
-    ecomponent_func_test:run("presence_test"),
-    ?_assert(true).
-
-disco_info_test(_Config) ->
-    ecomponent_func_test:run("disco_info_test"),
-    ?_assert(true).
-
-disco_test(_Config) ->
-    ecomponent_func_test:run("disco_test"),
-    ?_assert(true).
-
-forward_response_module_test(_Config) ->
-    ecomponent_func_test:run("forward_response_module_test"),
-    ?_assert(true).
-
-forward_ns_in_set_test(_Config) ->
-    ecomponent_func_test:run("forward_ns_in_set_test"),
-    ?_assert(true).
-
-save_id_expired_test(_Config) ->
-    ecomponent_func_test:run("save_id_expired_test"),
-    ?_assert(true).
-
-sync_send_test(_Config) ->
-    ecomponent_func_test:run("sync_send_test"),
-    ?_assert(true).
-
 coutdown_test(_Config) ->
     init(countdown_test),
     St = #state{requestTimeout=3},
@@ -230,26 +192,50 @@ access_list_set_test(_Config) ->
     ?assertNot(ecomponent_acl:access_list_set('com.ecomponent.ns/ns1', Bob1)),
     ?finish().
 
+disco_muted_test(_Config) ->
+    ecomponent_func_test:run("disco_muted_test").
+
+ping_test(_Config) ->
+    ecomponent_func_test:run("ping_test").
+
+message_test(_Config) ->
+    ecomponent_func_test:run("message_test").
+
+presence_test(_Config) ->
+    ecomponent_func_test:run("presence_test").
+
+disco_info_test(_Config) ->
+    ecomponent_func_test:run("disco_info_test").
+
+disco_test(_Config) ->
+    ecomponent_func_test:run("disco_test").
+
+forward_response_module_test(_Config) ->
+    ecomponent_func_test:run("forward_response_module_test").
+
+forward_ns_in_set_test(_Config) ->
+    ecomponent_func_test:run("forward_ns_in_set_test").
+
+save_id_expired_test(_Config) ->
+    ecomponent_func_test:run("save_id_expired_test").
+
+sync_send_test(_Config) ->
+    ecomponent_func_test:run("sync_send_test").
+
 multiconnection_test(_Config) ->
-    ecomponent_func_test:run("multiconnection_test"),
-    ?_assert(true).
+    ecomponent_func_test:run("multiconnection_test").
 
 processor_iq_test(_Config) ->
-    ecomponent_func_test:run("processor_iq_test"),
-    ?_assert(true).
+    ecomponent_func_test:run("processor_iq_test").
 
 processor_message_test(_Config) ->
-    ecomponent_func_test:run("processor_message_test"),
-    ?_assert(true).
+    ecomponent_func_test:run("processor_message_test").
 
 processor_presence_test(_Config) ->
-    ecomponent_func_test:run("processor_presence_test"),
-    ?_assert(true).
+    ecomponent_func_test:run("processor_presence_test").
 
 multiping_test(_Config) ->
-    ecomponent_func_test:run("multiping_test"),
-    ?_assert(true).
+    ecomponent_func_test:run("multiping_test").
 
 forward_acl_ns_in_set_test(_Config) ->
-    ecomponent_func_test:run("forward_acl_ns_in_set_test"),
-    ?_assert(true).
+    ecomponent_func_test:run("forward_acl_ns_in_set_test").

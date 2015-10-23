@@ -34,7 +34,7 @@
     </mockups>
 
     <steps>
-        <step name="send to dummy process" type="send">
+        <step name="to dummy process" type="send">
             <iq xmlns='jabber:client'
                 type='set'
                 from='bob@localhost/pc'
@@ -44,7 +44,7 @@
             </iq>
         </step>
 
-        <step name="receive forbidden error" type="receive">
+        <step name="forbidden error" type="receive">
             <iq xmlns='jabber:client' 
                 type='error' 
                 from='alice.localhost' 

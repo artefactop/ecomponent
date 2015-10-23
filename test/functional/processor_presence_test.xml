@@ -13,12 +13,13 @@
     </config>
 
     <steps>
-        <step name="send an unknown namespace" type="send">
+        <step name="an unknown namespace" type="send">
             <presence
                 type='unavailable'
                 from='bob@localhost/res'
                 to='alice.localhost'
                 id='test_bot'/>
         </step>
+        <step name="nothing" type="quiet"/>
     </steps>
 </functional>
