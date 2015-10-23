@@ -488,7 +488,7 @@ parse(#xmlel{name='start-code', attrs=[]}=Start) ->
 parse(#xmlel{name='start-code'}=Start) ->
     M = binary_to_atom(exmpp_xml:get_attribute(Start, <<"module">>, <<"no_module">>), utf8),
     F = binary_to_atom(exmpp_xml:get_attribute(Start, <<"function">>, <<"no_func">>), utf8),
-    {'start-code', fun M:F/0};
+    {'start-code', fun M:F/1};
 
 parse(#xmlel{name='stop-code', attrs=[]}=Stop) ->
     {'stop-code', bin_to_code(general, exmpp_xml:get_cdata(Stop))};
@@ -496,7 +496,7 @@ parse(#xmlel{name='stop-code', attrs=[]}=Stop) ->
 parse(#xmlel{name='stop-code'}=Stop) ->
     M = binary_to_atom(exmpp_xml:get_attribute(Stop, <<"module">>, <<"no_module">>), utf8),
     F = binary_to_atom(exmpp_xml:get_attribute(Stop, <<"function">>, <<"no_func">>), utf8),
-    {'stop-code', fun M:F/0};
+    {'stop-code', fun M:F/1};
 
 parse(#xmlel{name=config, children=Configs}) ->
     lists:flatmap(fun
