@@ -167,6 +167,12 @@ For example, if you use [`emysql`](https://github.com/Eonblast/Emysql) for conne
 				{result_packet, 1, [<<"id">>,<<"name">>], [], []}
 		]]></code>
 	</mockup>
+    <mockup module="emysql" function="query">
+        <code module="emysql_fake" function="query" arity="3"/>
+    </mockup>
+    <mockup module="emysql" function="equery">
+        <code module="emysql_fake" function="equery" arity="3" send-pid="yes"/>
+    </mockup>
 </mockups>
 ```
 
@@ -178,6 +184,17 @@ The `mockups` tag have the following attributes you can use to improve the use o
 
 - *passthrough*: when you want to mock a module but not all the functions the module have, you can use this attribute setting as `true`.
 - *strict*: set this attribute to `true` if you need to mock a module that doesn't exists.
+
+You can define the code inline (inside the XML doc) or outside adding to the code
+tag the attributes `module`, `function` and `arity`.
+
+If you use `send-pid="yes"` the PID will be sent as first param increasing the number of params accepted by the function. In the last example above, the function called should be as follow:
+
+```erlang
+equery(PID, _Pool, _Query, _Args) ->
+    PID ! select,
+    [].
+```
 
 ### Start and Stop Codes
 
@@ -193,11 +210,35 @@ When you start the test you can execute a code to launch your system, or part of
 ]]></stop-code>
 ```
 
+The code could be used from an external module using the params `module` and `function` (the arity is supposed to be zero) for the `start-code` and/or `stop-code` tags:
+
+```xml
+<start-code module="muc_app" function="start"/>
+<stop-code module="muc_app" function="stop"/>
+```
+
+The Erlang code for those functions should be something like:
+
+```erlang
+-module(muc_app).
+-export([start/0, stop/0]).
+
+start() ->
+    % actions to start
+    ok.
+
+stop() ->
+    % actions to stop
+    ok.
+```
+
 ### Step by step
 
 The steps should be executed in the order appears in the file. The log show the `name` of the test and depends on the type, should perform some of the next actions:
 
-* `send`: send to `ecomponent` the stanza describe inside the `step` tag. As is. The stanza should be stored too in the `Packet` variable for use it in the next `code` stanza.
+#### send
+
+Send to `ecomponent` the stanza describe inside the `step` tag. As is. The stanza should be stored too in the `Packet` variable for use it in the next `code` stanza.
 
 ```xml
 <step name="send disco#info" type="send">
@@ -211,7 +252,9 @@ The steps should be executed in the order appears in the file. The log show the 
 </step>
 ```
 
-* `receive`: waits for receive the stanza describe inside the `step` tag from `ecomponent`. In this case you can use the wildcard `{{_}}`. This wildcard indicates the value for this attribute or CDATA should be whatever.
+#### receive
+
+Waits for receive the stanza describe inside the `step` tag from `ecomponent`. In this case you can use the wildcard `{{_}}`. This wildcard indicates the value for this attribute or CDATA should be whatever.
 
 ```xml
 <step name="receive creation messages" type="receive">
@@ -236,7 +279,28 @@ You can add more than one stanza inside the step, all the stanzas should arrive 
 </step>
 ```
 
-* `store`: save the stanza inside the `step` tag in the variable `Packet` for use in the next step, that should be `code`. The stanza should be parsed before store it.
+Even you can configure `receive` for intercept process messages as code:
+
+```xml
+<step name="receive creation messages (db)" type="receive"><![CDATA[
+    updated
+]]></step>
+```
+
+This is equivalent to have in that part the following code:
+
+```erlang
+receive
+    updated -> ok;
+    Other -> throw(Other)
+after Timeout ->
+    throw("TIMEOUT!!!")
+end
+```
+
+#### store
+
+Save the stanza inside the `step` tag in the variable `Packet` for use in the next step, that should be `code`. The stanza should be parsed before store it.
 
 ```xml
 <step name="request arrived" type="store">
@@ -250,7 +314,9 @@ You can add more than one stanza inside the step, all the stanzas should arrive 
 </step>
 ```
 
-* `code`: runs a code inside the `step` tag.
+#### code
+
+Runs a code inside the `step` tag.
 
 ```xml
 <step name="update save_id" type="code"><![CDATA[
@@ -260,7 +326,17 @@ You can add more than one stanza inside the step, all the stanzas should arrive 
 ]]></step>
 ```
 
-* `quiet`: waits a specific time and if something is received in that time, throw an error.
+or:
+
+```xml
+<step name="update save_id" type="code" module="myapp_test" function="save_id"/>
+```
+
+The function `save_id/1` should exists in the `myapp_test` module.
+
+#### quiet
+
+Waits a specific time and if something is received in that time, throw an error.
 
 ```xml
 <step name="nothing should be received" type="quiet" timeout="1000"/>

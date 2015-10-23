@@ -482,11 +482,21 @@ parse_servers([#xmlel{name='server'}=Server|Servers], Config) ->
     {'start-code', function()} | {'stop-code', function()} | 
     [config()] | [mockup()] | [step()].
 %@hidden
-parse(#xmlel{name='start-code'}=Start) ->
+parse(#xmlel{name='start-code', attrs=[]}=Start) ->
     {'start-code', bin_to_code(general, exmpp_xml:get_cdata(Start))};
 
-parse(#xmlel{name='stop-code'}=Stop) ->
+parse(#xmlel{name='start-code'}=Start) ->
+    M = exmpp_xml:get_attribute(Start, <<"module">>, undefined),
+    F = exmpp_xml:get_attribute(Start, <<"function">>, undefined),
+    {'start-code', fun M:F/0};
+
+parse(#xmlel{name='stop-code', attrs=[]}=Stop) ->
     {'stop-code', bin_to_code(general, exmpp_xml:get_cdata(Stop))};
+
+parse(#xmlel{name='stop-code'}=Stop) ->
+    M = exmpp_xml:get_attribute(Stop, <<"module">>, undefined),
+    F = exmpp_xml:get_attribute(Stop, <<"function">>, undefined),
+    {'stop-code', fun M:F/0};
 
 parse(#xmlel{name=config, children=Configs}) ->
     lists:flatmap(fun
@@ -519,13 +529,48 @@ parse(#xmlel{name=mockups, children=Mockups}=MockupsTag) ->
         <<"false">> -> [non_strict];
         _ -> []
     end, 
-    MockConfigs = lists:map(fun(#xmlel{}=Mockup) ->
-        #mockup{
-            module=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"module">>, <<>>), utf8),
-            function=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"function">>, <<>>), utf8),
-            code=bin_to_code(mockup, exmpp_xml:get_path(Mockup, [{element, 'code'}, cdata]))}
-    end, Mockups),
+    MockConfigs = lists:map(fun parse/1, Mockups),
     {MockOpts, MockConfigs};
+
+parse(#xmlel{name=mockup}=Mockup) ->
+    CodeTag = exmpp_xml:get_element(Mockup, 'code'),
+    M = exmpp_xml:get_attribute(CodeTag, <<"module">>, undefined),
+    F = exmpp_xml:get_attribute(CodeTag, <<"function">>, undefined),
+    A = exmpp_xml:get_attribute(CodeTag, <<"arity">>, <<"0">>),
+    Code = if
+        M =:= undefined orelse F =:= undefined ->
+            bin_to_code(mockup, exmpp_xml:get_path(Mockup, [
+                {element, 'code'}, cdata]));
+        true ->
+            Module = binary_to_atom(M, utf8),
+            Function = binary_to_atom(F, utf8),
+            Arity = binary_to_integer(A),
+            case exmpp_xml:get_attribute(CodeTag, <<"send-pid">>, <<"no">>) of
+            <<"no">> ->
+                fun(_) -> fun Module:Function/Arity end;
+            <<"yes">> ->
+                fun(PID) ->
+                    %% FIXME: well... this is not the most elegant way
+                    %%        to solve the dynamic calls.
+                    case Arity of
+                        0 -> fun() -> Module:Function(PID) end;
+                        1 -> fun(Z) -> Module:Function(PID,Z) end;
+                        2 -> fun(Y,Z) -> Module:Function(PID,Y,Z) end;
+                        3 -> fun(X,Y,Z) -> Module:Function(PID,X,Y,Z) end;
+                        4 -> fun(W,X,Y,Z) -> Module:Function(PID,W,X,Y,Z) end;
+                        5 -> fun(V,W,X,Y,Z) -> Module:Function(PID,V,W,X,Y,Z) end;
+                        6 -> fun(U,V,W,X,Y,Z) -> Module:Function(PID,U,V,W,X,Y,Z) end;
+                        7 -> fun(T,U,V,W,X,Y,Z) -> Module:Function(PID,T,U,V,W,X,Y,Z) end;
+                        8 -> fun(S,T,U,V,W,X,Y,Z) -> Module:Function(PID,S,T,U,V,W,X,Y,Z) end;
+                        9 -> fun(R,S,T,U,V,W,X,Y,Z) -> Module:Function(PID,R,S,T,U,V,W,X,Y,Z) end
+                    end
+                end
+            end
+    end,
+    #mockup{
+        module=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"module">>, <<>>), utf8),
+        function=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"function">>, <<>>), utf8),
+        code=Code};
 
 parse(#xmlel{name=steps, children=Steps}) ->
     lists:map(fun
@@ -537,6 +582,18 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
                 timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
                 idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
+        (#xmlel{children=[#xmlel{name=Name}=Child|_]}=Step)
+                when Name =:= 'code' orelse Name =:= "code" ->
+            Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
+            Times = exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>),
+            M = binary_to_atom(exmpp_xml:get_attribute(Child, <<"module">>, undefined), utf8),
+            F = binary_to_atom(exmpp_xml:get_attribute(Child, <<"function">>, undefined), utf8),
+            A = binary_to_integer(exmpp_xml:get_attribute(Child, <<"arity">>, <<"0">>)),
+            #step{
+                name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
+                type=Type,
+                times=bin_to_integer(Times),
+                stanza=fun M:F/A};
         (#xmlel{children=[#xmlel{}=Child|Childs]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
             #step{

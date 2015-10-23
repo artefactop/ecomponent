@@ -20,21 +20,13 @@
 
     <mockups>
         <mockup module="timem" function="insert">
-            <code><![CDATA[
-                (_,_) -> ok
-            ]]></code>
+            <code module="timem_fake" function="insert" arity="2"/>
         </mockup>
         <mockup module="timem" function="remove">
-            <code><![CDATA[
-                (ID) when is_tuple(ID) ->
-                    PID ! ID,
-                    server_two
-            ]]></code>
+            <code module="timem_fake" function="remove" arity="1" send-pid="yes"/>
         </mockup>
         <mockup module="timem" function="remove_expired">
-            <code><![CDATA[
-                (_) -> []
-            ]]></code>
+            <code module="timem_fake" function="remove_expired" arity="1"/>
         </mockup>
     </mockups>
 
