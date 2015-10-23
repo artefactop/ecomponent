@@ -553,16 +553,36 @@ parse(#xmlel{name=mockup}=Mockup) ->
                     %% FIXME: well... this is not the most elegant way
                     %%        to solve the dynamic calls.
                     case Arity of
-                        0 -> fun() -> Module:Function(PID) end;
-                        1 -> fun(Z) -> Module:Function(PID,Z) end;
-                        2 -> fun(Y,Z) -> Module:Function(PID,Y,Z) end;
-                        3 -> fun(X,Y,Z) -> Module:Function(PID,X,Y,Z) end;
-                        4 -> fun(W,X,Y,Z) -> Module:Function(PID,W,X,Y,Z) end;
-                        5 -> fun(V,W,X,Y,Z) -> Module:Function(PID,V,W,X,Y,Z) end;
-                        6 -> fun(U,V,W,X,Y,Z) -> Module:Function(PID,U,V,W,X,Y,Z) end;
-                        7 -> fun(T,U,V,W,X,Y,Z) -> Module:Function(PID,T,U,V,W,X,Y,Z) end;
-                        8 -> fun(S,T,U,V,W,X,Y,Z) -> Module:Function(PID,S,T,U,V,W,X,Y,Z) end;
-                        9 -> fun(R,S,T,U,V,W,X,Y,Z) -> Module:Function(PID,R,S,T,U,V,W,X,Y,Z) end
+                        0 -> fun() ->
+                            Args = [],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID)) end;
+                        1 -> fun(Z) ->
+                            Args = [Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,Z)) end;
+                        2 -> fun(Y,Z) ->
+                            Args = [Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,Y,Z)) end;
+                        3 -> fun(X,Y,Z) ->
+                            Args = [X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,X,Y,Z)) end;
+                        4 -> fun(W,X,Y,Z) ->
+                            Args = [W,X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,W,X,Y,Z)) end;
+                        5 -> fun(V,W,X,Y,Z) ->
+                            Args = [V,W,X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,V,W,X,Y,Z)) end;
+                        6 -> fun(U,V,W,X,Y,Z) ->
+                            Args = [U,V,W,X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,U,V,W,X,Y,Z)) end;
+                        7 -> fun(T,U,V,W,X,Y,Z) ->
+                            Args = [T,U,V,W,X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,T,U,V,W,X,Y,Z)) end;
+                        8 -> fun(S,T,U,V,W,X,Y,Z) ->
+                            Args = [S,T,U,V,W,X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,S,T,U,V,W,X,Y,Z)) end;
+                        9 -> fun(R,S,T,U,V,W,X,Y,Z) ->
+                            Args = [R,S,T,U,V,W,X,Y,Z],
+                            mock_handling(Module, Function, Args, catch Module:Function(PID,R,S,T,U,V,W,X,Y,Z)) end
                     end
                 end
             end
@@ -622,6 +642,13 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 times=bin_to_integer(Times),
                 stanza=Fun}
     end, Steps).
+
+mock_handling(M, F, A, {'EXIT', _}) ->
+    Astr = [ to_str(Ai) || Ai <- A ],
+    ?debugFmt(" ** FAILED MOCK ** ~s:~s with args: ~p~n", [Astr]),
+    throw({M,F,A});
+mock_handling(_M,_F,_A,Value) ->
+    Value.
 
 -spec bin_to_code(general | steps | mockup, binary()) -> function().
 %@hidden
@@ -692,7 +719,8 @@ to_str(Bin) when is_binary(Bin) -> binary_to_list(Bin);
 to_str(Str) when is_list(Str) -> Str;
 to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
 to_str(Int) when is_integer(Int) -> integer_to_list(Int);
-to_str(Float) when is_float(Float) -> float_to_list(Float).
+to_str(Float) when is_float(Float) -> float_to_list(Float);
+to_str(Tuple) when is_tuple(Tuple) -> Tuple. 
 
 -spec compare_stanzas(any_xml(), [any_xml()]) -> [any_xml()] | [].
 %@hidden
