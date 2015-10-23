@@ -583,16 +583,25 @@ bin_to_code(mockup, B) ->
 -spec get_defs(Module::atom()) -> [attribute()].
 %@hidden
 get_defs(Module) ->
-    case code:is_loaded(Module) of
-        true -> ok;
-        _ -> code:load_file(Module)
-    end,
-    File = code:which(Module),
-    Chunks = beam_lib:chunks(File, [abstract_code,"CInf"]),
-    {ok,{_Mod,[{abstract_code,{_Version,Forms}},{"CInf",_CB}]}} = Chunks,
-    Recs = lists:keysort(2, lists:ukeysort(1, 
-        [{N,I,D} || {attribute,I,record,{N,_}}=D <- Forms])),
-    [ Def || {_Name,_I,Def} <- Recs ].
+    case ets:info(ecomponent_defs) of
+    undefined ->
+        code:load_file(Module),
+        File = code:which(Module),
+        Chunks = beam_lib:chunks(File, [abstract_code,"CInf"]),
+        {ok,{_Mod,[{abstract_code,{_Version,Forms}},{"CInf",_CB}]}} = Chunks,
+        Recs = lists:keysort(2, lists:ukeysort(1, 
+            [{N,I,D} || {attribute,I,record,{N,_}}=D <- Forms])),
+        Defs = [ Def || {_Name,_I,Def} <- Recs ],
+        spawn(fun() ->
+            ets:new(ecomponent_defs, [set, named_table, public]),
+            ets:insert(ecomponent_defs, {defs, Defs}),
+            timer:sleep(3600000)
+        end),
+        Defs;  
+    _ ->
+        [{defs,Defs}] = ets:lookup(ecomponent_defs, defs),
+        Defs
+    end. 
 
 -spec bin_to_code(binary()) -> function().
 %@hidden
