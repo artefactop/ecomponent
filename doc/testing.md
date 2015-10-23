@@ -284,39 +284,112 @@ For launch the tests you can use the `eunit` system:
 The output for `ecomponent` tests are similar to this:
 
 ```
-src/ecomponent_func_test.erl:58:<0.372.0>: 
-
-Check Functional Test: "presence_test"
-
-src/ecomponent_func_test.erl:73:<0.372.0>: config = [{syslog_name,"ecomponent"},
-          {jid,"ecomponent.test"},
-          {throttle,false},
-          {processors,[{default,{mod,dummy}}]},
-          {message_processor,{mod,dummy}},
-          {presence_processor,{mod,dummy}},
-          {disco_info,false},
-          {features,[]},
-          [],
-          {servers,[{default,[{server,"localhost"},
-                              {port,8899},
-                              {pass,"secret"}]}]},
-          {mnesia_nodes,[nonode@nohost]}]
-
-src/ecomponent_func_test.erl:96:<0.372.0>: meck:new(dummy).
-
-src/ecomponent_func_test.erl:103:<0.372.0>: mockup dummy:process_presence
-
-src/ecomponent_func_test.erl:142:<0.372.0>: STEP (send): send presence to ecomponent
-
-src/ecomponent_func_test.erl:143:<0.372.0>: Send: 
-<presence xmlns="jabber:client" to="alice.localhost" id="test_bot"/>
+module 'ecomponent_test'
+   ** TEST => processor_iq_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: an unknown namespace)...[0.006 s] ok
+    ecomponent_func_test: run_steps (code: checks)...[0.018 s] ok
+    ecomponent_func_test: run_steps (receive: feature-not-implemented error)...[0.031 s] ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.073 s]
+   ** TEST => processor_message_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: a message without processor)...[0.008 s] ok
+    ecomponent_func_test: run_steps (quiet: nothing)...[1.002 s] ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 1.026 s]
+   ** TEST => processor_presence_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (send: an unknown namespace)...[0.004 s] ok
+    ecomponent_func_test: run_steps (quiet: nothing)...[1.001 s] ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 1.021 s]
+   ** TEST => save_id_expired_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (store: request arrived)...ok
+    ecomponent_func_test: run_steps (code: update save_id)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: data urn:itself)...[1.998 s] ok
+    ecomponent_func_test: run (stop)...[0.002 s] ok
+    [done in 2.022 s]
+   ** TEST => disco_muted_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: request disco#info)...[0.005 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: ping result)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.028 s]
+   ** TEST => ping_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: ping result)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.020 s]
+   ** TEST => disco_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (send: disco#info)...[0.006 s] ok
+    ecomponent_func_test: run_steps (receive: disco#info)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.020 s]
+   ** TEST => disco_info_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: disco#info)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: creation messages)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.020 s]
+   ** TEST => forward_response_module_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: an error)...[0.009 s] ok
+    ecomponent_func_test: run_steps (code receive: a response)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.024 s]
+   ** TEST => forward_ns_in_set_test
+    ecomponent_func_test: run (start)...[0.061 s] ok
+    ecomponent_func_test: run_steps (send: to dummy process)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: the stanza by dummy process)...ok
+    ecomponent_func_test: run (stop)...[0.003 s] ok
+    [done in 0.083 s]
+   ** TEST => message_test
+    ecomponent_func_test: run (start)...[0.066 s] ok
+    ecomponent_func_test: run_steps (send: message to ecomponent)...[0.006 s] ok
+    ecomponent_func_test: run_steps (code receive: message)...ok
+    ecomponent_func_test: run (stop)...[0.003 s] ok
+    [done in 0.087 s]
+   ** TEST => presence_test
+    ecomponent_func_test: run (start)...[0.058 s] ok
+    ecomponent_func_test: run_steps (send: presence to ecomponent)...[0.005 s] ok
+    ecomponent_func_test: run_steps (code receive: presence)...ok
+    ecomponent_func_test: run (stop)...[0.003 s] ok
+    [done in 0.078 s]
+   ** TEST => sync_send_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (store: save Packet)...ok
+    ecomponent_func_test: run_steps (code: request Packet as sync_send())...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: the request from sync_send())...ok
+    ecomponent_func_test: run_steps (send: the result packet to sync_send())...[0.007 s] ok
+    ecomponent_func_test: run_steps (code receive: check params)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.036 s]
+   ** TEST => multiconnection_test
+    ecomponent_func_test: run (start)...[0.045 s] ok
+    ecomponent_func_test: run_steps (send: send to server_to)...[0.005 s] ok
+    ecomponent_func_test: run_steps (code receive: timem gives information)...ok
+    ecomponent_func_test: run_steps (receive: receive from server_two)...ok
+    ecomponent_func_test: run (stop)...[0.038 s] ok
+    [done in 0.103 s]
+   ** TEST => multiping_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.007 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.006 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: multi-stanza ping results)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.038 s]
+   ** TEST => forward_acl_ns_in_set_test
+    ecomponent_func_test: run (start)...[0.067 s] ok
+    ecomponent_func_test: run_steps (send: to dummy process)...[0.006 s] ok
+    ecomponent_func_test: run_steps (receive: forbidden error)...ok
+    ecomponent_func_test: run (stop)...[0.004 s] ok
+    [done in 0.089 s]
 ```
 
-If you get something like this:
-
-```
-=ERROR REPORT==== 19-Feb-2014::16:37:41 ===
-Loading of /Users/manuelrubio/Projects/ecomponent/.eunit/ecomponent_func_test.beam failed: not_purged
-```
-
-Don't worry about it, this error is due to the eval system. But it's not a real error.
+Enjoy!
