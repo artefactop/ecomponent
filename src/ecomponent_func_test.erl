@@ -685,7 +685,7 @@ parse(#xmlel{name=steps, children=Steps}) ->
 
 mock_handling(M, F, A, {'EXIT', _}) ->
     Astr = [ to_str(Ai) || Ai <- A ],
-    ?debugFmt(" ** FAILED MOCK ** ~s:~s with args: ~p~n", [Astr]),
+    ?debugFmt(" ** FAILED MOCK ** ~s:~s with args: ~p~n", [M,F,Astr]),
     throw({M,F,A});
 mock_handling(_M,_F,_A,Value) ->
     Value.
