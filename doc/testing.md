@@ -329,7 +329,9 @@ Runs a code inside the `step` tag.
 or:
 
 ```xml
-<step name="update save_id" type="code" module="myapp_test" function="save_id"/>
+<step name="update save_id" type="code">
+    <code module="myapp_test" function="save_id"/>
+</step>
 ```
 
 The function `save_id/2` should exists in the `myapp_test` module. The params passed to the function are the previous packet (last XML stanza if there was or `undefined` instead) and the PID.
