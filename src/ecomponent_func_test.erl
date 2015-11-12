@@ -45,6 +45,8 @@ check(Tests, Timeout, Verbose) ->
         }
     }.
 
+-spec start_suite(Verbose :: boolean()) -> ok.
+%@hidden
 start_suite(Verbose) ->
     net_kernel:start([ecomponent@localhost, shortnames]),
     timer:sleep(1000),
@@ -56,6 +58,8 @@ start_suite(Verbose) ->
     ?run_exmpp(),
     ok.
 
+-spec stop_suite() -> ok.
+%@hidden
 stop_suite() ->
     mnesia:stop(),
     unmock(),
@@ -84,6 +88,8 @@ run(Test) ->
     end
     }}}.
 
+-spec start_config_and_mocks(Functional :: #functional{}) -> ok.
+%@hidden
 start_config_and_mocks(Functional) ->
     %% TODO: add mnesia clustering options
     Config = Functional#functional.config ++ [
@@ -103,6 +109,8 @@ start_config_and_mocks(Functional) ->
     end, proplists:get_value(servers, Config, [])),
     ok.
 
+-spec stop_and_unmock(Functional :: #functional{}) -> ok.
+%@hidden
 stop_and_unmock(Functional) ->
     ecomponent:stop(),
     ecomponent_acl:stop(),
