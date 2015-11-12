@@ -168,6 +168,10 @@ mock_functions(#mockup{module=M,function=F,code=Code}) ->
 unmock(Mockups) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
+        case meck:validate(M) of
+            true -> ok;
+            false -> throw({emockup, M})
+        end,
         meck:unload(M)
     end, Modules),
     ok.
