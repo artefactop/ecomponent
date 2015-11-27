@@ -24,7 +24,7 @@
     </mockups>
 
     <steps>
-        <step name="send message to ecomponent" type="send">
+        <step name="message to ecomponent" type="send">
             <message xmlns='jabber:client' 
                      type='chat' 
                      to='alice.localhost'
@@ -32,7 +32,7 @@
                 <body>ping</body>
             </message>
         </step>
-        <step name="receive message" type="receive"><![CDATA[
+        <step name="message" type="receive"><![CDATA[
             #message{type="chat", xmlel=_Xmlel}
         ]]></step>
     </steps>

@@ -27,8 +27,8 @@
     mock_opts = [] :: [atom()],
     steps = [] :: [step()],
     config = [] :: [term()],
-    start = fun() -> ok end :: function(),
-    stop = fun() -> ok end :: function()
+    start = fun(_PID) -> ok end :: function(),
+    stop = fun(_PID) -> ok end :: function()
 }).
 
 -type functional() :: #functional{}.
@@ -81,6 +81,9 @@ end).
 -define(meck_syslog(), ?meck_syslog(false)).
 
 -define(meck_config(Config), begin
+    lists:foreach(fun({Key,_}) ->
+        application:unset_env(ecomponent, Key)
+    end, application:get_all_env(ecomponent)),
     lists:foreach(fun
         ({Key, Val}) ->
             application:set_env(ecomponent, Key, Val);

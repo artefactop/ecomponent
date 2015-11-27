@@ -410,6 +410,7 @@ waiting_data() ->
 %@hidden
 process_run(M, F, A) ->
     PID = spawn(fun waiting_data/0),
+    link(PID),
     case is_process_alive(PID) of
     true ->
         PID ! {M,F,A};

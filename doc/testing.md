@@ -167,6 +167,12 @@ For example, if you use [`emysql`](https://github.com/Eonblast/Emysql) for conne
 				{result_packet, 1, [<<"id">>,<<"name">>], [], []}
 		]]></code>
 	</mockup>
+    <mockup module="emysql" function="query">
+        <code module="emysql_fake" function="query" arity="3"/>
+    </mockup>
+    <mockup module="emysql" function="equery">
+        <code module="emysql_fake" function="equery" arity="3" send-pid="yes"/>
+    </mockup>
 </mockups>
 ```
 
@@ -178,6 +184,17 @@ The `mockups` tag have the following attributes you can use to improve the use o
 
 - *passthrough*: when you want to mock a module but not all the functions the module have, you can use this attribute setting as `true`.
 - *strict*: set this attribute to `true` if you need to mock a module that doesn't exists.
+
+You can define the code inline (inside the XML doc) or outside adding to the code
+tag the attributes `module`, `function` and `arity`.
+
+If you use `send-pid="yes"` the PID will be sent as first param increasing the number of params accepted by the function. In the last example above, the function called should be as follow:
+
+```erlang
+equery(PID, _Pool, _Query, _Args) ->
+    PID ! select,
+    [].
+```
 
 ### Start and Stop Codes
 
@@ -193,11 +210,35 @@ When you start the test you can execute a code to launch your system, or part of
 ]]></stop-code>
 ```
 
+The code could be used from an external module using the params `module` and `function` (the arity is supposed to be zero) for the `start-code` and/or `stop-code` tags:
+
+```xml
+<start-code module="muc_app" function="start"/>
+<stop-code module="muc_app" function="stop"/>
+```
+
+The Erlang code for those functions should be something like:
+
+```erlang
+-module(muc_app).
+-export([start/0, stop/0]).
+
+start() ->
+    % actions to start
+    ok.
+
+stop() ->
+    % actions to stop
+    ok.
+```
+
 ### Step by step
 
 The steps should be executed in the order appears in the file. The log show the `name` of the test and depends on the type, should perform some of the next actions:
 
-* `send`: send to `ecomponent` the stanza describe inside the `step` tag. As is. The stanza should be stored too in the `Packet` variable for use it in the next `code` stanza.
+#### send
+
+Send to `ecomponent` the stanza describe inside the `step` tag. As is. The stanza should be stored too in the `Packet` variable for use it in the next `code` stanza.
 
 ```xml
 <step name="send disco#info" type="send">
@@ -211,7 +252,9 @@ The steps should be executed in the order appears in the file. The log show the 
 </step>
 ```
 
-* `receive`: waits for receive the stanza describe inside the `step` tag from `ecomponent`. In this case you can use the wildcard `{{_}}`. This wildcard indicates the value for this attribute or CDATA should be whatever.
+#### receive
+
+Waits for receive the stanza describe inside the `step` tag from `ecomponent`. In this case you can use the wildcard `{{_}}`. This wildcard indicates the value for this attribute or CDATA should be whatever.
 
 ```xml
 <step name="receive creation messages" type="receive">
@@ -236,7 +279,28 @@ You can add more than one stanza inside the step, all the stanzas should arrive 
 </step>
 ```
 
-* `store`: save the stanza inside the `step` tag in the variable `Packet` for use in the next step, that should be `code`. The stanza should be parsed before store it.
+Even you can configure `receive` for intercept process messages as code:
+
+```xml
+<step name="receive creation messages (db)" type="receive"><![CDATA[
+    updated
+]]></step>
+```
+
+This is equivalent to have in that part the following code:
+
+```erlang
+receive
+    updated -> ok;
+    Other -> throw(Other)
+after Timeout ->
+    throw("TIMEOUT!!!")
+end
+```
+
+#### store
+
+Save the stanza inside the `step` tag in the variable `Packet` for use in the next step, that should be `code`. The stanza should be parsed before store it.
 
 ```xml
 <step name="request arrived" type="store">
@@ -250,7 +314,9 @@ You can add more than one stanza inside the step, all the stanzas should arrive 
 </step>
 ```
 
-* `code`: runs a code inside the `step` tag.
+#### code
+
+Runs a code inside the `step` tag.
 
 ```xml
 <step name="update save_id" type="code"><![CDATA[
@@ -260,7 +326,19 @@ You can add more than one stanza inside the step, all the stanzas should arrive 
 ]]></step>
 ```
 
-* `quiet`: waits a specific time and if something is received in that time, throw an error.
+or:
+
+```xml
+<step name="update save_id" type="code">
+    <code module="myapp_test" function="save_id"/>
+</step>
+```
+
+The function `save_id/2` should exists in the `myapp_test` module. The params passed to the function are the previous packet (last XML stanza if there was or `undefined` instead) and the PID.
+
+#### quiet
+
+Waits a specific time and if something is received in that time, throw an error.
 
 ```xml
 <step name="nothing should be received" type="quiet" timeout="1000"/>
@@ -284,39 +362,112 @@ For launch the tests you can use the `eunit` system:
 The output for `ecomponent` tests are similar to this:
 
 ```
-src/ecomponent_func_test.erl:58:<0.372.0>: 
-
-Check Functional Test: "presence_test"
-
-src/ecomponent_func_test.erl:73:<0.372.0>: config = [{syslog_name,"ecomponent"},
-          {jid,"ecomponent.test"},
-          {throttle,false},
-          {processors,[{default,{mod,dummy}}]},
-          {message_processor,{mod,dummy}},
-          {presence_processor,{mod,dummy}},
-          {disco_info,false},
-          {features,[]},
-          [],
-          {servers,[{default,[{server,"localhost"},
-                              {port,8899},
-                              {pass,"secret"}]}]},
-          {mnesia_nodes,[nonode@nohost]}]
-
-src/ecomponent_func_test.erl:96:<0.372.0>: meck:new(dummy).
-
-src/ecomponent_func_test.erl:103:<0.372.0>: mockup dummy:process_presence
-
-src/ecomponent_func_test.erl:142:<0.372.0>: STEP (send): send presence to ecomponent
-
-src/ecomponent_func_test.erl:143:<0.372.0>: Send: 
-<presence xmlns="jabber:client" to="alice.localhost" id="test_bot"/>
+module 'ecomponent_test'
+   ** TEST => processor_iq_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: an unknown namespace)...[0.006 s] ok
+    ecomponent_func_test: run_steps (code: checks)...[0.018 s] ok
+    ecomponent_func_test: run_steps (receive: feature-not-implemented error)...[0.031 s] ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.073 s]
+   ** TEST => processor_message_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: a message without processor)...[0.008 s] ok
+    ecomponent_func_test: run_steps (quiet: nothing)...[1.002 s] ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 1.026 s]
+   ** TEST => processor_presence_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (send: an unknown namespace)...[0.004 s] ok
+    ecomponent_func_test: run_steps (quiet: nothing)...[1.001 s] ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 1.021 s]
+   ** TEST => save_id_expired_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (store: request arrived)...ok
+    ecomponent_func_test: run_steps (code: update save_id)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: data urn:itself)...[1.998 s] ok
+    ecomponent_func_test: run (stop)...[0.002 s] ok
+    [done in 2.022 s]
+   ** TEST => disco_muted_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: request disco#info)...[0.005 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: ping result)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.028 s]
+   ** TEST => ping_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: ping result)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.020 s]
+   ** TEST => disco_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (send: disco#info)...[0.006 s] ok
+    ecomponent_func_test: run_steps (receive: disco#info)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.020 s]
+   ** TEST => disco_info_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: disco#info)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: creation messages)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.020 s]
+   ** TEST => forward_response_module_test
+    ecomponent_func_test: run (start)...[0.002 s] ok
+    ecomponent_func_test: run_steps (send: an error)...[0.009 s] ok
+    ecomponent_func_test: run_steps (code receive: a response)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.024 s]
+   ** TEST => forward_ns_in_set_test
+    ecomponent_func_test: run (start)...[0.061 s] ok
+    ecomponent_func_test: run_steps (send: to dummy process)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: the stanza by dummy process)...ok
+    ecomponent_func_test: run (stop)...[0.003 s] ok
+    [done in 0.083 s]
+   ** TEST => message_test
+    ecomponent_func_test: run (start)...[0.066 s] ok
+    ecomponent_func_test: run_steps (send: message to ecomponent)...[0.006 s] ok
+    ecomponent_func_test: run_steps (code receive: message)...ok
+    ecomponent_func_test: run (stop)...[0.003 s] ok
+    [done in 0.087 s]
+   ** TEST => presence_test
+    ecomponent_func_test: run (start)...[0.058 s] ok
+    ecomponent_func_test: run_steps (send: presence to ecomponent)...[0.005 s] ok
+    ecomponent_func_test: run_steps (code receive: presence)...ok
+    ecomponent_func_test: run (stop)...[0.003 s] ok
+    [done in 0.078 s]
+   ** TEST => sync_send_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (store: save Packet)...ok
+    ecomponent_func_test: run_steps (code: request Packet as sync_send())...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: the request from sync_send())...ok
+    ecomponent_func_test: run_steps (send: the result packet to sync_send())...[0.007 s] ok
+    ecomponent_func_test: run_steps (code receive: check params)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.036 s]
+   ** TEST => multiconnection_test
+    ecomponent_func_test: run (start)...[0.045 s] ok
+    ecomponent_func_test: run_steps (send: send to server_to)...[0.005 s] ok
+    ecomponent_func_test: run_steps (code receive: timem gives information)...ok
+    ecomponent_func_test: run_steps (receive: receive from server_two)...ok
+    ecomponent_func_test: run (stop)...[0.038 s] ok
+    [done in 0.103 s]
+   ** TEST => multiping_test
+    ecomponent_func_test: run (start)...[0.001 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.007 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.006 s] ok
+    ecomponent_func_test: run_steps (send: ping)...[0.005 s] ok
+    ecomponent_func_test: run_steps (receive: multi-stanza ping results)...ok
+    ecomponent_func_test: run (stop)...[0.001 s] ok
+    [done in 0.038 s]
+   ** TEST => forward_acl_ns_in_set_test
+    ecomponent_func_test: run (start)...[0.067 s] ok
+    ecomponent_func_test: run_steps (send: to dummy process)...[0.006 s] ok
+    ecomponent_func_test: run_steps (receive: forbidden error)...ok
+    ecomponent_func_test: run (stop)...[0.004 s] ok
+    [done in 0.089 s]
 ```
 
-If you get something like this:
-
-```
-=ERROR REPORT==== 19-Feb-2014::16:37:41 ===
-Loading of /Users/manuelrubio/Projects/ecomponent/.eunit/ecomponent_func_test.beam failed: not_purged
-```
-
-Don't worry about it, this error is due to the eval system. But it's not a real error.
+Enjoy!

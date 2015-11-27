@@ -29,9 +29,10 @@
         <step name="update save_id" type="code"><![CDATA[
             Id = <<"test_bot_save_id_generated_test">>,
             ecomponent:save_id(Id, 'urn:itself', Packet, dummy),
+            true = is_process_alive(whereis(ecomponent)),
             ecomponent ! getup
         ]]></step>
-        <step name="receive" type="receive" timeout="5000">
+        <step name="data urn:itself" type="receive" timeout="5000">
             <iq xmlns='jabber:client'
                 type='set'
                 from='bob@localhost/res'

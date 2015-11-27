@@ -24,7 +24,7 @@
     </mockups>
 
     <steps>
-        <step name="send to dummy process" type="send">
+        <step name="to dummy process" type="send">
             <iq xmlns='jabber:client'
                 type='set'
                 from='bob@localhost/pc'
@@ -33,7 +33,7 @@
                 <data xmlns='urn:itself'/>
             </iq>
         </step>
-        <step name="check dummy process receive the stanza" type="receive">
+        <step name="the stanza by dummy process" type="receive">
             <iq xmlns='jabber:client'
                 type='set'
                 from='bob@localhost/pc'
