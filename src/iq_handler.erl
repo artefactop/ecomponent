@@ -100,7 +100,7 @@ forward_ns(#params{ns=NS}=Params) ->
             P:process_iq(Params)
         catch Error ->
             lager:error("call to module ~p die: ~p~n", [P, Error]),
-            Error = exmpp_xml:element(undefined, 'error', [
+            XmlError = exmpp_xml:element(undefined, 'error', [
                 exmpp_xml:attribute(<<"type">>, <<"wait">>),
                 exmpp_xml:attribute(<<"code">>, <<"500">>)
             ], [
@@ -112,7 +112,7 @@ forward_ns(#params{ns=NS}=Params) ->
                     'text', [], [
                         exmpp_xml:cdata(<<"Server crash!">>)
             ])]),
-            Result = exmpp_iq:error(Params#params.iq, Error),
+            Result = exmpp_iq:error(Params#params.iq, XmlError),
             ecomponent:send(Result, ?NS_DISCO_ITEMS, ecomponent, false)
         end;
     {app, Name} ->
