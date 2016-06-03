@@ -98,8 +98,8 @@ forward_ns(#params{ns=NS}=Params) ->
     {mod, P} ->
         try
             P:process_iq(Params)
-        catch Error ->
-            lager:error("call to module ~p die: ~p~n", [P, Error]),
+        catch Class:Error ->
+            lager:error("call to module ~p die: ~p~n", [P, {Class,Error}]),
             XmlError = exmpp_xml:element(undefined, 'error', [
                 exmpp_xml:attribute(<<"type">>, <<"wait">>),
                 exmpp_xml:attribute(<<"code">>, <<"500">>)
