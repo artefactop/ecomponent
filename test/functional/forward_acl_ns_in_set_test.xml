@@ -7,6 +7,16 @@
         </servers>
         <jid>ecomponent.test</jid>
         <throttle active="false"/>
+        <access-list-get>
+            <iq xmlns="urn:itself">
+                <item value="alice@localhost"/>
+            </iq>
+        </access-list-get>
+        <access-list-set>
+            <iq xmlns="urn:itself">
+                <item value="alice.localhost"/>
+            </iq>
+        </access-list-set> 
         <processors>
             <iq xmlns="default" type="mod" data="dummy"/>
             <message type="mod" data="dummy"/>
@@ -33,14 +43,18 @@
                 <data xmlns='urn:itself'/>
             </iq>
         </step>
-        <step name="the stanza by dummy process" type="receive">
-            <iq xmlns='jabber:client'
-                type='set'
-                from='bob@localhost/pc'
-                to='alice.localhost'
+
+        <step name="forbidden error" type="receive">
+            <iq xmlns='jabber:client' 
+                type='error' 
+                from='alice.localhost' 
+                to='bob@localhost/pc' 
                 id='test_fwns_set'>
                 <data xmlns='urn:itself'/>
-            </iq>
+                <error type='auth'>
+                    <forbidden xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+                </error>
+            </iq>        
         </step>
     </steps>
 

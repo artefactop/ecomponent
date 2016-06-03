@@ -31,7 +31,7 @@
                 PID ! ecomponent:sync_send(Packet, NS) 
             end)
         ]]></step>
-        <step name="receive the request from sync_send()" type="receive">
+        <step name="the request from sync_send()" type="receive">
             <iq xmlns='jabber:client'
                 type='get'
                 from='alice.localhost'
@@ -40,7 +40,7 @@
                 <query xmlns='urn:myinfo'/>
             </iq>
         </step>
-        <step name="send the result packet to sync_send()" type="send">
+        <step name="the result packet to sync_send()" type="send">
             <iq xmlns='jabber:client'
                 type='result'
                 id='test_bot'
@@ -51,14 +51,8 @@
                 </query>
             </iq>
         </step>
-        <step name="check params received" type="code"><![CDATA[
-            receive
-                #params{type="result",server=default} ->
-                    ok;
-                Any -> throw(Any)
-            after 1000 ->
-                throw("TIMEOUT!!!")
-            end
+        <step name="check params" type="receive"><![CDATA[
+            #params{type="result",server=default}
         ]]></step>
     </steps>
 

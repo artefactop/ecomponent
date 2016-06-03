@@ -23,7 +23,7 @@ __Behaviours:__ [`gen_server`](gen_server.md).
 
 
 <pre><code>
-start_link(ID::atom(), JID::<a href="ecomponent.md#type-jid">ecomponent:jid()</a>, Conf::<a href="proplists.md#type-proplist">proplists:proplist()</a>) -&gt; {ok, pid()} | ignore | {error, {already_started, pid()}} | {error, term()}
+start_link(ID::{atom(), atom()}, JID::<a href="ecomponent.md#type-jid">ecomponent:jid()</a>, Conf::<a href="proplists.md#type-proplist">proplists:proplist()</a>) -&gt; {ok, pid()} | ignore | {error, {already_started, pid()}} | {error, term()}
 </code></pre>
 
 <br></br>

@@ -16,7 +16,7 @@
     </config>
 
     <steps>
-        <step name="ping" type="send">
+        <step name="ping" times="3" type="send">
             <iq xmlns='jabber:client'
                 type='get'
                 to='alice.localhost'
@@ -26,7 +26,17 @@
             </iq>
         </step>
 
-        <step name="ping result" type="receive">
+        <step name="multi-stanza ping results" type="receive">
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='alice.localhost'
+                to='bob@localhost/pc'/>
+            <iq xmlns='jabber:client'
+                type='result'
+                id='test_bot'
+                from='alice.localhost'
+                to='bob@localhost/pc'/>
             <iq xmlns='jabber:client'
                 type='result'
                 id='test_bot'

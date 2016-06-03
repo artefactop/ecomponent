@@ -283,7 +283,11 @@ And in the config file:
 
 Dependency: [folsom](https://github.com/boundary/folsom_cowboy)
 
-Automatically ecomponent provide you metrics using folsom. In old versions we use [folsom_cowboy](https://github.com/altenwald/folsom_cowboy) but it's better you can select the better way for you to collect this data.
+Automatically ecomponent provide you metrics using folsom. In old versions we use [folsom_cowboy](https://github.com/altenwald/folsom_cowboy) but it's better you can select the better way for you to collect this data. The options available are:
+
+- [folsom_cowboy](https://github.com/altenwald/folsom_cowboy): to retrieve the data vía HTTP.
+- [folsomite](https://github.com/campanja/folsomite): to send the data to [Graphite Carbon](http://graphite.wikidot.com/) server.
+- [folsom_webmachine](https://github.com/boundary/folsom_webmachine): with plugins (in priv directory) for [Munin](http://munin-monitoring.org/).
 
 The default values are:
 
@@ -294,6 +298,26 @@ The default values are:
 - presence dropped by type. [spiral](https://github.com/boundary/folsom#spiral-meter).
 - message throughput by type (normal, chat, groupchat, ...). [spiral](https://github.com/boundary/folsom#spiral-meter).
 - message dropped by type. [spiral](https://github.com/boundary/folsom#spiral-meter).
+
+You can extend that with the `ecomponent` param `metrics_mods`:
+
+```erlang
+{ecomponent, [
+    ...
+    {metrics_mods, [mycode_metrics]},
+    ...
+]},
+```
+
+In the module `mycode_metrics` you should provide a list of metrics to create:
+
+```erlang
+-module(mycode_metrics).
+-export([init/0]).
+
+init() ->
+    [mycode_ok, mycode_errors].
+```
 
 ##lager
 

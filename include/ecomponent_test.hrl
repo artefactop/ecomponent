@@ -15,7 +15,7 @@
     type = 'send' :: 'send' | 'receive',
     times = 1 :: pos_integer(),
     timeout = 1000 :: pos_integer(),
-    stanza :: exmpp_xml:xmlel(),
+    stanza :: exmpp_xml:xmlel() | [exmpp_xml:xmlel(),...],
     idserver = default :: atom()
 }).
 
@@ -27,8 +27,8 @@
     mock_opts = [] :: [atom()],
     steps = [] :: [step()],
     config = [] :: [term()],
-    start = fun() -> ok end :: function(),
-    stop = fun() -> ok end :: function()
+    start = fun(_PID) -> ok end :: function(),
+    stop = fun(_PID) -> ok end :: function()
 }).
 
 -type functional() :: #functional{}.
@@ -44,14 +44,6 @@ end).
 
 -define(meck_lager(Verbose), begin
     meck:new(lager),
-    meck:expect(lager, dispatch_log, fun(_Severity, _Metadata, _Format, _Args, _Size) ->
-        if 
-            Verbose ->
-                ?debugFmt(_Format, _Args), 
-                ok;
-            true -> ok
-        end
-    end),
     meck:expect(lager, dispatch_log, fun(_Severity, _Module, _Function, _Line, _Pid, _Traces, _Format, _Args, _TruncSize) ->
         if
             Verbose ->
@@ -89,14 +81,15 @@ end).
 -define(meck_syslog(), ?meck_syslog(false)).
 
 -define(meck_config(Config), begin
-    meck:new(application, [passthrough, unstick]),
-    meck:expect(application, get_all_env, 1, Config),
-    meck:expect(application, get_env, fun(_,Key) ->
-        case proplists:get_value(Key, Config) of
-            undefined -> undefined;
-            Value -> {ok, Value}
-        end
-    end)
+    lists:foreach(fun({Key,_}) ->
+        application:unset_env(ecomponent, Key)
+    end, application:get_all_env(ecomponent)),
+    lists:foreach(fun
+        ({Key, Val}) ->
+            application:set_env(ecomponent, Key, Val);
+        %% dummy added in the configuration:
+        ([]) -> ok
+    end, Config)
 end).
 
 -define(meck_component(), (fun() ->
@@ -112,16 +105,19 @@ end).
 end)()).
 
 -define(meck_metrics(), begin 
-    meck:new(metrics),
-    meck:expect(metrics, init, fun() -> ok end),
-    meck:expect(metrics, notify_throughput_iq, fun(_IO, _Type, _NS) -> ok end),
-    meck:expect(metrics, notify_throughput_presence, fun(_IO, _Type) -> ok end),
-    meck:expect(metrics, notify_throughput_message, fun(_IO, _Type) -> ok end),
-    meck:expect(metrics, set_iq_time, fun(_ID, _Type, _NS) -> ok end),
-    meck:expect(metrics, notify_dropped_iq, fun(_Type, _NS) -> ok end),
-    meck:expect(metrics, notify_dropped_presence, fun(_Type) -> ok end),
-    meck:expect(metrics, notify_dropped_message, fun(_Type) -> ok end),
-    meck:expect(metrics, notify_resp_time, fun(_ID) -> ok end)
+    meck:new(ecomponent_metrics),
+    meck:expect(ecomponent_metrics, init, 0, ok),
+    meck:expect(ecomponent_metrics, init, 1, ok),
+    meck:expect(ecomponent_metrics, notify_throughput_iq, 3, ok),
+    meck:expect(ecomponent_metrics, notify_throughput_presence, 2, ok),
+    meck:expect(ecomponent_metrics, notify_throughput_message, 2, ok),
+    meck:expect(ecomponent_metrics, set_iq_time, 3, ok),
+    meck:expect(ecomponent_metrics, notify_dropped_iq, 2, ok),
+    meck:expect(ecomponent_metrics, notify_dropped_presence, 1, ok),
+    meck:expect(ecomponent_metrics, notify_dropped_message, 1, ok),
+    meck:expect(ecomponent_metrics, notify_resp_time, 1, ok),
+    meck:expect(ecomponent_metrics, notify, 1, ok),
+    meck:expect(ecomponent_metrics, notify, 2, ok)
 end).
 
 -define(meck_jid(), begin

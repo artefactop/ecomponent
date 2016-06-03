@@ -21,7 +21,7 @@ check(Test) ->
     Timeout :: pos_integer()) -> {timeout, integer(), function()}.
 %@doc Execute the suite for the list of tests passed as param. This function
 %     set the environment and run all the tests in the list. As second param
-%     you can configure the timeout for the suite of tests.
+%     you can configure the timeout (in seconds) for the suite of tests.
 %@end
 check(Test, Timeout) ->
     check(Test, Timeout, false).
@@ -32,71 +32,89 @@ check(Test, Timeout) ->
     Verbose :: boolean()) -> {timeout, integer(), function()}.
 %@doc Execute the suite for the list of tests passed as param. This function
 %     set the environment and run all the tests in the list. As second param
-%     you can configure the timeout for the suite of tests and as third
-%     param you can set if you want to show all the logs (lager and syslog)
-%     or not.
+%     you can configure the timeout (in seconds) for the suite of tests and
+%     as third param you can set if you want to show all the logs (lager and
+%     syslog) or not.
 %@end
 check(Tests, Timeout, Verbose) ->
-    {timeout, Timeout, ?_assert(begin
-        net_kernel:start([ecomponent@localhost, shortnames]),
-        timer:sleep(1000),
-        mnesia:start(),
-        ?meck_lager(Verbose),
-        ?meck_syslog(Verbose),
-        ?meck_component(),
-        ?meck_metrics(),
-        ?run_exmpp(),
-        [ run(Test) || Test <- Tests ],
-        mnesia:stop(),
-        unmock(),
-        net_kernel:stop(),
-        true
-    end)}.
+    {timeout, Timeout,
+        {setup,
+            fun() -> start_suite(Verbose) end,
+            fun(_) -> stop_suite() end,
+            [ run(Test) || Test <- Tests ]
+        }
+    }.
+
+-spec start_suite(Verbose :: boolean()) -> ok.
+%@hidden
+start_suite(Verbose) ->
+    net_kernel:start([ecomponent@localhost, shortnames]),
+    timer:sleep(1000),
+    mnesia:start(),
+    ?meck_lager(Verbose),
+    ?meck_syslog(Verbose),
+    ?meck_component(),
+    ?meck_metrics(),
+    ?run_exmpp(),
+    ok.
+
+-spec stop_suite() -> ok.
+%@hidden
+stop_suite() ->
+    mnesia:stop(),
+    unmock(),
+    net_kernel:stop(),
+    ok.
 
 -spec run(Test :: string()) -> ok.
 %@doc Run a single test. This function runs a single test without prepare
 %     the environment.
 %@end
 run(Test) ->
-    ?debugFmt("~n~nCheck Functional Test: ~p~n", [Test]),
-    {ProcessPID, ProcessRef} = spawn_monitor(fun() ->
-        Functional = parse_file(Test),
-        %% TODO: add mnesia clustering options
-        Config = Functional#functional.config ++ [{mnesia_nodes, [node()]}],
-        %% TODO: launch slaves depend on cluster configuration
-        ?debugFmt("config = ~p~n", [Config]),
-        ?meck_config(Config),
-        PID = self(),
-        meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
-            PID ! P
-        end),
-        mock(Functional#functional.mockups, Functional#functional.mock_opts),
-
-        {ok, _} = ecomponent:start_link(),
-        JID = proplists:get_value(jid, Config, "ecomponent.bot"),
-        lists:foreach(fun({Name, AtomicServerConf}) ->
-            {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID, AtomicServerConf)
-        end, proplists:get_value(servers, Config, [])),
-
-        (Functional#functional.start)(),
-
-        run_steps(Functional#functional.steps),
-
-        (Functional#functional.stop)(),
-
-        ecomponent:stop(),
-        meck:unload(application),
-        unmock(Functional#functional.mockups)
-    end),
-    receive 
-        {'DOWN',ProcessRef,process,ProcessPID,normal} -> ok;
-        {'DOWN',ProcessRef,process,ProcessPID,Reason} -> 
-            ?debugFmt("DIE: ~p~n", [Reason]),
-            throw(eprocdie)
-    after 8000 ->
-        ?debugFmt("test process frozen?!?~n", []),
-        throw(enoresponse)
+    {" ** TEST => " ++ Test, {spawn, {setup,
+    fun() ->
+        parse_file(Test)
     end,
+    fun(Functional) ->
+        [{"start", fun() ->
+            start_config_and_mocks(Functional),
+            (Functional#functional.start)(self())
+        end}] ++
+        run_steps(Functional#functional.steps) ++
+        [{"stop", fun() ->
+            (Functional#functional.stop)(self()),
+            stop_and_unmock(Functional)
+        end}]
+    end
+    }}}.
+
+-spec start_config_and_mocks(Functional :: #functional{}) -> ok.
+%@hidden
+start_config_and_mocks(Functional) ->
+    %% TODO: add mnesia clustering options
+    Config = Functional#functional.config ++ [
+        {mnesia_nodes, [node()]},
+        {mnesia_callback, []}
+    ],
+    %% TODO: launch slaves depend on cluster configuration
+    ?meck_config(Config),
+    mock(Functional#functional.mockups, Functional#functional.mock_opts),
+
+    {ok, _} = ecomponent:start_link(),
+    {ok, _} = ecomponent_acl:start_link(),
+    JID = proplists:get_value(jid, Config, "ecomponent.bot"),
+    lists:foreach(fun({Name, AtomicServerConf}) ->
+        {ok, _} = ecomponent_con_worker:start_link({Name,Name}, JID,
+            AtomicServerConf)
+    end, proplists:get_value(servers, Config, [])),
+    ok.
+
+-spec stop_and_unmock(Functional :: #functional{}) -> ok.
+%@hidden
+stop_and_unmock(Functional) ->
+    ecomponent:stop(),
+    ecomponent_acl:stop(),
+    unmock(Functional#functional.mockups),
     ok.
 
 -spec parse_file(Test :: string()) -> functional().
@@ -130,8 +148,11 @@ parse_file(Test) ->
 mock(Mockups,Opts) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
-        ?debugFmt("meck:new(~p, ~p).~n", [M,Opts]),
-        meck:new(M, Opts)
+        case catch meck:new(M, Opts) of
+            {'EXIT',{{already_started,_},_}} -> ok;
+            ok -> ok;
+            Error -> throw(Error)
+        end
     end, Modules),
     [ mock_functions(M) || M <- Mockups ],
     ok.
@@ -139,8 +160,7 @@ mock(Mockups,Opts) when is_list(Mockups) ->
 -spec mock_functions(mockup()) -> ok.
 %@hidden
 mock_functions(#mockup{module=M,function=F,code=Code}) ->
-    ?debugFmt("mockup ~p:~p~n", [M,F]),
-    meck:expect(M, F, Code),
+    meck:expect(M, F, Code(self())),
     ok.
 
 -spec unmock(Mockups :: [mockup()]) -> ok.
@@ -148,6 +168,10 @@ mock_functions(#mockup{module=M,function=F,code=Code}) ->
 unmock(Mockups) when is_list(Mockups) ->
     Modules = lists:usort([ M || #mockup{module=M} <- Mockups ]),
     lists:foreach(fun(M) ->
+        case meck:validate(M) of
+            true -> ok;
+            false -> throw({emockup, M})
+        end,
         meck:unload(M)
     end, Modules),
     ok.
@@ -158,38 +182,48 @@ unmock() ->
     meck:unload(),
     ok.
 
--spec run_steps(Steps :: [step()]) -> ok.
+-spec run_steps(Steps :: [step()]) -> [term()].
 %@hidden
 run_steps(Steps) ->
-    run_steps(Steps, undefined).
+    run_steps(Steps, undefined, []).
 
--spec run_steps(Steps :: [step()], PrevPacket :: exmpp_xml:xmlel()) -> ok.
+-spec run_steps(Steps :: [step()], PrevPacket :: exmpp_xml:xmlel(), [term()]) -> [term()].
 %@hidden
-run_steps([],_) ->
-    ok;
+run_steps([],_,Tests) ->
+    Tests;
 
-run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket) ->
-    ?debugFmt("STEP (code): ~s~n", [Name]),
-    Fun(PrevPacket, self()),
+run_steps([#step{name=Name,times=T,type=code,stanza=Fun}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"code: " ++ to_str(Name),
+        fun() ->
+            PID = self(),
+            meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+                PID ! P
+            end),
+            Fun(PrevPacket, PID)
+        end}],
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
-        true -> run_steps(Steps, PrevPacket)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
     end;
 
-run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("STEP (store): ~s~n", [Name]),
-    ?debugFmt("Store: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+run_steps([#step{name=Name,times=T,type=store,stanza=Stanza}=Step|Steps], _PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"store: " ++ to_str(Name), fun() ->
+        true
+    end}],
     %% TODO: check stanza for replace vars {{whatever}}
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
-        true -> run_steps(Steps, Stanza)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza, NewTests);
+        true -> run_steps(Steps, Stanza, NewTests)
     end;
 
-run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("STEP (send): ~s~n", [Name]),
-    ?debugFmt("Send: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
+run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=Step|Steps], _PrevPacket, Tests) ->
     #xmlel{name=PacketType} = Stanza,
-    TypeAttr = binary_to_list(exmpp_xml:get_attribute(Stanza, <<"type">>, <<"normal">>)),
+    DefaultType = case PacketType of
+        iq -> enotype;
+        presence -> <<"available">>;
+        message -> <<"normal">>
+    end,
+    TypeAttr = binary_to_list(exmpp_xml:get_attribute(Stanza, <<"type">>, DefaultType)),
     From = exmpp_xml:get_attribute(Stanza, <<"from">>, <<"bob@localhost/pc">>),
     FromJID = exmpp_jid:parse(From),
     %% TODO: check stanza for replace vars {{whatever}}
@@ -200,34 +234,88 @@ run_steps([#step{name=Name,times=T,type=send,stanza=Stanza,idserver=ServerID}=St
             FromJID#jid.domain,
             FromJID#jid.resource}
     },
-    ?assertNotEqual(undefined, whereis(ecomponent)),
-    ecomponent ! {Packet, ServerID},
+    NewTests = Tests ++ [{"send: " ++ to_str(Name), fun() ->
+        PID = self(),
+        meck:expect(exmpp_component, send_packet, fun(_XmppCom, P) ->
+            PID ! P
+        end),
+        ?assertNotEqual(undefined, whereis(ecomponent)),
+        ecomponent ! {Packet, ServerID},
+        ok
+    end}],
     if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Packet);
-        true -> run_steps(Steps, Packet)
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Packet, NewTests);
+        true -> run_steps(Steps, Packet, NewTests)
     end;
 
-run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], _PrevPacket) ->
-    ?debugFmt("STEP (receive): ~s~n", [Name]),
-    ?debugFmt("Waiting for: ~n~s~n", [exmpp_xml:document_to_binary(Stanza)]),
-    receive
-        NewStanza -> 
-            compare_stanza(Stanza, NewStanza)
-    after Step#step.timeout ->
-        ?debugFmt("TIMEOUT!!! we need to receive ~p~n", [Stanza]),
-        throw(enostanza)
-    end,
-    if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], Stanza);
-        true -> run_steps(Steps, Stanza)
+run_steps([#step{name=Name,times=T,type='receive',stanza=[#xmlel{}|_]=Stanzas}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"receive: " ++ to_str(Name), fun() ->
+        receive
+            NewStanza when is_record(NewStanza, xmlel) ->
+                B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
+                % Check if stanza is in list of stanzas
+                case compare_stanzas(Stanzas, B) of
+                    [] ->
+                        ok;
+                    RestStanzas  ->
+                        run_steps([Step#step{stanza=RestStanzas}|Steps], PrevPacket, Tests),
+                        ok
+                end
+        after Step#step.timeout ->
+            ?debugFmt("TIMEOUT!! we need to receive ~p stanzas~n", [Stanzas]),
+            throw(enostanza)
+        end
+    end}],
+    if
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
     end;
 
-run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket) ->
-    ?debugFmt("STEP (code receive): ~s~n", [Name]),
-    Fun(PrevPacket, self()),
-    if 
-        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket);
-        true -> run_steps(Steps, PrevPacket)
+
+run_steps([#step{name=Name,times=T,type='receive',stanza=#xmlel{}=Stanza}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"receive: " ++ to_str(Name), fun() ->
+        receive
+            NewStanza when is_record(NewStanza, xmlel) ->
+                A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
+                B = NewStanza#xmlel{name = to_str(NewStanza#xmlel.name)},
+                compare_stanza(A, B);
+            Other ->
+                ?debugFmt("Received: ~n~p~n", [Other]),
+                throw(ewrongstanza)
+        after Step#step.timeout ->
+            ?debugFmt("TIMEOUT!!! we need to receive ~p~n", [Stanza]),
+            throw(enostanza)
+        end
+    end}],
+    if
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
+    end;
+
+run_steps([#step{name=Name,times=T,type='receive',stanza=Fun}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"code receive: " ++ to_str(Name),
+        fun() -> 
+            Fun(PrevPacket, self())
+        end
+    }],
+    if
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
+    end;
+
+run_steps([#step{name=Name,times=T,type='quiet'}=Step|Steps], PrevPacket, Tests) ->
+    NewTests = Tests ++ [{"quiet: " ++ to_str(Name), fun() ->
+        receive
+            Something ->
+                ?debugFmt("NOT QUIET!!! ~p~n", [Something]),
+                throw(Something)
+        after Step#step.timeout ->
+            ok
+        end
+    end}],
+    if
+        T > 1 -> run_steps([Step#step{times=T-1}|Steps], PrevPacket, NewTests);
+        true -> run_steps(Steps, PrevPacket, NewTests)
     end.
 
 -type any_xml() :: exmpp_xml:xmlel() | exmpp_xml:xmlcdata().
@@ -255,8 +343,10 @@ compare_stanza(
             ?debugFmt("expected: ~p~n", [B]),
             ?assertEqual(A,B)
     end, lists:zip(AttrsA, AttrsB)),
-    ChildrenA = lists:sort([{A,undefined,undefined,B,C,D} || {A,_,_,B,C,D} <- Children1]),
-    ChildrenB = lists:sort([{A,undefined,undefined,B,C,D} || {A,_,_,B,C,D} <- Children2]),
+    Children1A = case Children1 of [C1] when is_list(C1) -> C1; C1 -> C1 end,
+    Children2B = case Children2 of [C2] when is_list(C2) -> C2; C2 -> C2 end,
+    ChildrenA = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children1A]),
+    ChildrenB = lists:sort([{A,undefined,undefined,to_str(B),C,D} || {A,_,_,B,C,D} <- Children2B]),
     case length(ChildrenA) == length(ChildrenB) of
         true -> ok;
         false -> throw({children_length, [{children1, ChildrenA}, {children2, ChildrenB}]})
@@ -348,6 +438,27 @@ parse_throttle(#xmlel{name='throttle'}=Config) ->
     [{throttle, binary_to_atom(
         exmpp_xml:get_attribute(Config, <<"active">>, <<"true">>), utf8)}].
 
+-type parse_acl_ret() :: [ {access_list_get | access_list_set, [binary()]} ].
+ 
+-spec parse_acl(exmpp_xml:xmlel()) -> parse_acl_ret().
+%@hidden
+parse_acl(#xmlel{name='access-list-get'}=Config) ->
+    parse_acl({Config, access_list_get});
+parse_acl(#xmlel{name='access-list-set'}=Config) ->
+    parse_acl({Config, access_list_set}); 
+parse_acl({#xmlel{name=_Name, children=Acls}=Config, AclType}) ->
+    lists:foldl(fun
+        (#xmlel{name='iq', ns=NS}, [{Type,A}]) ->
+            Acl = case exmpp_xml:get_path(Config, [{element, 'iq'}]) of
+                      #xmlel{children=Items} ->
+                          lists:map(fun(#xmlel{name='item'}=X) ->
+                              exmpp_xml:get_attribute(X, <<"value">>, <<>>)
+                          end, Items);
+                      _ -> [] 
+                  end,
+            [{Type, A ++ [{NS, Acl}]}]   
+    end, [{AclType, []}], Acls).
+
 -type server_config() :: {atom(), [
     {server, string()} | {port, pos_integer()} |
     {secret, string()} | {type, active | passive}
@@ -383,11 +494,21 @@ parse_servers([#xmlel{name='server'}=Server|Servers], Config) ->
     {'start-code', function()} | {'stop-code', function()} | 
     [config()] | [mockup()] | [step()].
 %@hidden
-parse(#xmlel{name='start-code'}=Start) ->
+parse(#xmlel{name='start-code', attrs=[]}=Start) ->
     {'start-code', bin_to_code(general, exmpp_xml:get_cdata(Start))};
 
-parse(#xmlel{name='stop-code'}=Stop) ->
+parse(#xmlel{name='start-code'}=Start) ->
+    M = binary_to_atom(exmpp_xml:get_attribute(Start, <<"module">>, <<"no_module">>), utf8),
+    F = binary_to_atom(exmpp_xml:get_attribute(Start, <<"function">>, <<"no_func">>), utf8),
+    {'start-code', fun M:F/1};
+
+parse(#xmlel{name='stop-code', attrs=[]}=Stop) ->
     {'stop-code', bin_to_code(general, exmpp_xml:get_cdata(Stop))};
+
+parse(#xmlel{name='stop-code'}=Stop) ->
+    M = binary_to_atom(exmpp_xml:get_attribute(Stop, <<"module">>, <<"no_module">>), utf8),
+    F = binary_to_atom(exmpp_xml:get_attribute(Stop, <<"function">>, <<"no_func">>), utf8),
+    {'stop-code', fun M:F/1};
 
 parse(#xmlel{name=config, children=Configs}) ->
     lists:flatmap(fun
@@ -400,6 +521,10 @@ parse(#xmlel{name=config, children=Configs}) ->
             [{jid, binary_to_list(exmpp_xml:get_cdata(Config))}];
         (#xmlel{name='throttle'}=Config) ->
             parse_throttle(Config);
+        (#xmlel{name='access-list-set'}=Config) ->
+            parse_acl(Config);
+        (#xmlel{name='access-list-get'}=Config) ->
+            parse_acl(Config);
         (#xmlel{name='processors',children=Processors}) ->
             lists:flatten(parse_processors(Processors));
         (#xmlel{name='disco-info'}=Config) ->
@@ -412,25 +537,142 @@ parse(#xmlel{name=mockups, children=Mockups}=MockupsTag) ->
     MockOpts = case exmpp_xml:get_attribute(MockupsTag, <<"passthrough">>, <<"false">>) of
         <<"true">> -> [passthrough];
         _ -> []
-    end,
-    MockConfigs = lists:map(fun(#xmlel{}=Mockup) ->
-        #mockup{
-            module=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"module">>, <<>>), utf8),
-            function=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"function">>, <<>>), utf8),
-            code=bin_to_code(mockup, exmpp_xml:get_path(Mockup, [{element, 'code'}, cdata]))}
-    end, Mockups),
+    end ++ case exmpp_xml:get_attribute(MockupsTag, <<"strict">>, <<"false">>) of
+        <<"false">> -> [non_strict];
+        _ -> []
+    end, 
+    MockConfigs = lists:map(fun parse/1, Mockups),
     {MockOpts, MockConfigs};
+
+parse(#xmlel{name=mockup}=Mockup) ->
+    CodeTag = exmpp_xml:get_element(Mockup, 'code'),
+    M = exmpp_xml:get_attribute(CodeTag, <<"module">>, undefined),
+    F = exmpp_xml:get_attribute(CodeTag, <<"function">>, undefined),
+    A = exmpp_xml:get_attribute(CodeTag, <<"arity">>, <<"0">>),
+    Code = if
+        M =:= undefined orelse F =:= undefined ->
+            bin_to_code(mockup, exmpp_xml:get_path(Mockup, [
+                {element, 'code'}, cdata]));
+        true ->
+            Module = binary_to_atom(M, utf8),
+            Function = binary_to_atom(F, utf8),
+            Arity = binary_to_integer(A),
+            case exmpp_xml:get_attribute(CodeTag, <<"send-pid">>, <<"no">>) of
+            <<"no">> ->
+                fun(_) -> fun Module:Function/Arity end;
+            <<"yes">> ->
+                fun(PID) ->
+                    %% FIXME: well... this is not the most elegant way
+                    %%        to solve the dynamic calls.
+                    case Arity of
+                        0 -> 
+                            fun() ->
+                                Args = [],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        1 -> 
+                            fun(Z) ->
+                                Args = [Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        2 -> 
+                            fun(Y,Z) ->
+                                Args = [Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        3 -> 
+                            fun(X,Y,Z) ->
+                                Args = [X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        4 -> 
+                            fun(W,X,Y,Z) ->
+                                Args = [W,X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        5 -> 
+                            fun(V,W,X,Y,Z) ->
+                                Args = [V,W,X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        6 -> 
+                            fun(U,V,W,X,Y,Z) ->
+                                Args = [U,V,W,X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        7 -> 
+                            fun(T,U,V,W,X,Y,Z) ->
+                                Args = [T,U,V,W,X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        8 -> 
+                            fun(S,T,U,V,W,X,Y,Z) ->
+                                Args = [S,T,U,V,W,X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end;
+                        9 -> 
+                            fun(R,S,T,U,V,W,X,Y,Z) ->
+                                Args = [R,S,T,U,V,W,X,Y,Z],
+                                mock_handling(Module, Function, Args,
+                                    catch erlang:apply(Module, Function, 
+                                        [PID|Args]))
+                            end
+                    end
+                end
+            end
+    end,
+    #mockup{
+        module=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"module">>, <<>>), utf8),
+        function=binary_to_atom(exmpp_xml:get_attribute(Mockup, <<"function">>, <<>>), utf8),
+        code=Code};
 
 parse(#xmlel{name=steps, children=Steps}) ->
     lists:map(fun
-        (#xmlel{children=[#xmlel{}=Child]}=Step) ->
+        (#xmlel{children=[]}=Step) ->
+            Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"quiet">>)),
+            #step{
+                name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
+                type=Type,
+                times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
+                timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
+                idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
+        (#xmlel{children=[#xmlel{name=Name}=Child|_]}=Step)
+                when Name =:= 'code' orelse Name =:= "code" ->
+            Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
+            Times = exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>),
+            M = binary_to_atom(exmpp_xml:get_attribute(Child, <<"module">>, undefined), utf8),
+            F = binary_to_atom(exmpp_xml:get_attribute(Child, <<"function">>, undefined), utf8),
+            #step{
+                name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
+                type=Type,
+                times=bin_to_integer(Times),
+                stanza=fun M:F/2};
+        (#xmlel{children=[#xmlel{}=Child|Childs]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"send">>)),
             #step{
                 name=exmpp_xml:get_attribute(Step, <<"name">>, <<"noname">>),
                 type=Type,
                 times=bin_to_integer(exmpp_xml:get_attribute(Step, <<"times">>, <<"1">>)),
                 timeout=bin_to_integer(exmpp_xml:get_attribute(Step, <<"timeout">>, <<"1000">>)),
-                stanza=Child,
+                stanza=case length(Childs)>0 of true -> [Child | Childs]; false -> Child end,
                 idserver=binary_to_atom(exmpp_xml:get_attribute(Step, <<"server-id">>, <<"default">>), utf8)};
         (#xmlel{children=[#xmlcdata{}|_]}=Step) ->
             Type = bin_to_type(exmpp_xml:get_attribute(Step, <<"type">>, <<"code">>)),
@@ -453,33 +695,48 @@ parse(#xmlel{name=steps, children=Steps}) ->
                 stanza=Fun}
     end, Steps).
 
+mock_handling(M, F, A, {'EXIT', _}) ->
+    Astr = [ to_str(Ai) || Ai <- A ],
+    ?debugFmt(" ** FAILED MOCK ** ~s:~s with args: ~p~n", [M,F,Astr]),
+    throw({M,F,A});
+mock_handling(_M,_F,_A,Value) ->
+    Value.
+
 -spec bin_to_code(general | steps | mockup, binary()) -> function().
 %@hidden
 bin_to_code(general, B) ->
-    bin_to_code(<<"fun() -> ", B/binary, " end.">>);
+    bin_to_code(<<"fun(PID) -> ", B/binary, " end.">>);
 
 bin_to_code(steps, B) ->
     bin_to_code(<<"fun(Packet, PID) -> ", B/binary, " end.">>);
 
 bin_to_code(mockup, B) ->
-    GenFun = bin_to_code(<<"fun(PID) -> fun", B/binary, " end end.">>),
-    GenFun(self()).
+    bin_to_code(<<"fun(PID) -> fun", B/binary, " end end.">>).
 
 -type attribute() :: {attribute, pos_integer(), record, RecordDef::term()}.
 
 -spec get_defs(Module::atom()) -> [attribute()].
 %@hidden
 get_defs(Module) ->
-    case code:is_loaded(Module) of
-        true -> ok;
-        _ -> code:load_file(Module)
-    end,
-    File = code:which(Module),
-    Chunks = beam_lib:chunks(File, [abstract_code,"CInf"]),
-    {ok,{_Mod,[{abstract_code,{_Version,Forms}},{"CInf",_CB}]}} = Chunks,
-    Recs = lists:keysort(2, lists:ukeysort(1, 
-        [{N,I,D} || {attribute,I,record,{N,_}}=D <- Forms])),
-    [ Def || {_Name,_I,Def} <- Recs ].
+    case ets:info(ecomponent_defs) of
+    undefined ->
+        code:load_file(Module),
+        File = code:which(Module),
+        Chunks = beam_lib:chunks(File, [abstract_code,"CInf"]),
+        {ok,{_Mod,[{abstract_code,{_Version,Forms}},{"CInf",_CB}]}} = Chunks,
+        Recs = lists:keysort(2, lists:ukeysort(1, 
+            [{N,I,D} || {attribute,I,record,{N,_}}=D <- Forms])),
+        Defs = [ Def || {_Name,_I,Def} <- Recs ],
+        spawn(fun() ->
+            ets:new(ecomponent_defs, [set, named_table, public]),
+            ets:insert(ecomponent_defs, {defs, Defs}),
+            timer:sleep(3600000)
+        end),
+        Defs;  
+    _ ->
+        [{defs,Defs}] = ets:lookup(ecomponent_defs, defs),
+        Defs
+    end. 
 
 -spec bin_to_code(binary()) -> function().
 %@hidden
@@ -504,4 +761,33 @@ bin_to_integer(B) ->
 bin_to_type(<<"receive">>) -> 'receive';
 bin_to_type(<<"code">>) -> 'code';
 bin_to_type(<<"store">>) -> 'store';
-bin_to_type(_) -> 'send'.
+bin_to_type(<<"quiet">>) -> 'quiet';
+bin_to_type(<<"send">>) -> 'send';
+bin_to_type(_) -> throw(invalid_step_type).
+
+-spec to_str(Any::any()) -> string().
+%@hidden
+to_str(Bin) when is_binary(Bin) -> binary_to_list(Bin);
+to_str(Str) when is_list(Str) -> Str;
+to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
+to_str(Int) when is_integer(Int) -> integer_to_list(Int);
+to_str(Float) when is_float(Float) -> float_to_list(Float);
+to_str(Tuple) when is_tuple(Tuple) -> Tuple. 
+
+-spec compare_stanzas(any_xml(), [any_xml()]) -> [any_xml()] | [].
+%@hidden
+compare_stanzas(B, Stanzas) ->
+    compare_stanzas(B, Stanzas, []).
+
+-spec compare_stanzas(any_xml(), [any_xml()], list()) -> [any_xml()] | [].
+
+compare_stanzas([], _B, _Acc) ->
+    throw(eunknownstanza);
+compare_stanzas([#xmlel{}=Stanza|Stanzas], B, Acc) ->
+    A = Stanza#xmlel{name = to_str(Stanza#xmlel.name)},
+    case catch compare_stanza(A, B) of
+        {'EXIT', _} ->
+            compare_stanzas(Stanzas, B, [A|Acc]);
+        _           ->
+            Acc ++ Stanzas
+    end.

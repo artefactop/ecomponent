@@ -19,7 +19,7 @@
     </config>
 
     <steps>
-        <step name="send disco#info" type="send">
+        <step name="disco#info" type="send">
             <iq xmlns='jabber:client'
                 type='get'
                 to='alice.localhost'
@@ -29,7 +29,7 @@
             </iq>
         </step>
 
-        <step name="receive creation messages" type="receive">
+        <step name="creation messages" type="receive">
             <iq xmlns='jabber:client'
                 type='result'
                 id='test_bot'

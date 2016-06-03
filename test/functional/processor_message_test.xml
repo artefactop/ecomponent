@@ -13,7 +13,7 @@
     </config>
 
     <steps>
-        <step name="send a message without processor" type="send">
+        <step name="a message without processor" type="send">
             <message
                 type='chat'
                 from='bob@localhost/res'
@@ -22,5 +22,6 @@
                 <body/>
             </message>
         </step>
+        <step name="nothing" type="quiet"/>
     </steps>
 </functional>

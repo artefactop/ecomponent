@@ -17,7 +17,11 @@
 %     will be useful to do the expiration or resend.
 %@end
 insert(K, V) ->
-    mnesia:dirty_write(#timem{id=K, packet=V, timestamp=tm(os:timestamp())}) =:= ok.
+    mnesia:dirty_write(#timem{
+        id=K, 
+        packet=V, 
+        timestamp=tm(os:timestamp()),
+        node=node()}) =:= ok.
 
 -spec remove(K::binary()) -> timem() | undefined.
 %@doc Remove an element from the database.
@@ -36,25 +40,39 @@ remove(K) ->
 %@end
 expired(D) ->
     T = tm(os:timestamp()) - D*1000000,
-    {atomic, Res} = mnesia:transaction(fun() ->
-        Q = qlc:q([ Id || #timem{id=Id, timestamp=Ts} <- mnesia:table(timem), Ts < T ]),
-        qlc:e(Q)
-    end),
-    Res.
+    mnesia:dirty_select(timem, [{
+        #timem{_='_', id='$1', timestamp='$2', node='$3'},
+        [{'andalso',
+            {'=:=', '$3', node()},
+            {'<', '$2', T}
+        }], 
+        ['$1']
+    }]).
 
 -spec remove_expired(D::integer()) -> [timem()].
 %@doc Request and remove all the expired elements.
 %@end
 remove_expired(D) ->
     T = tm(os:timestamp()) - D*1000000,
-    {atomic, Res} = mnesia:transaction(fun() ->
-        Q = qlc:q([ Timem || #timem{timestamp=Ts}=Timem <- mnesia:table(timem), Ts < T ]),
-        Timems = qlc:e(Q),
-        [ mnesia:delete_object(X) || X <- Timems ],
-        [ {K,V} || #timem{id=K, packet=V} <- Timems ]
-    end),
-    Res.
+    Timems = mnesia:dirty_select(timem, [{
+        #timem{id='$1', packet='$2', timestamp='$3', node='$4'},
+        [{'andalso',
+            {'=:=', '$4', node()},
+            {'<', '$3', T}
+        }],
+        ['$$']
+    }]),
+    case Timems of
+        [] -> [];
+        Timems ->
+            lists:map(fun(Timem) ->
+                #timem{id=K,packet=V} = Tuple = list_to_tuple([timem|Timem]),
+                mnesia:dirty_delete_object(Tuple),
+                {K,V}
+            end, Timems)
+    end.
 
 -spec tm( T::erlang:timestamp() ) -> integer().
 %@hidden
-tm({M, S, Mc}) -> M*1000000000000 + S*1000000 + Mc.
+tm({M, S, Mc}) ->
+    M*1000000000000 + S*1000000 + Mc.

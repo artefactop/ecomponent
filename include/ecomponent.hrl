@@ -1,5 +1,6 @@
 -define(NS_PROCESSOR, tab_ns_processor).
 -define(WLIST_TABLE, mmwl).
+-define(ECOMPONENT_DEFAULT_TIMEOUT, 5000).
 
 -record(matching, {
     id :: string(),
@@ -29,13 +30,14 @@
 -record(monitor, {
     id :: string(),
     counter = 0 :: integer(),
-    timestamp = now() :: erlang:timestamp()
+    timestamp = os:timestamp() :: erlang:timestamp()
 }).
 
 -record(timem, {
     id :: string(),
     packet :: term(),
-    timestamp :: integer()
+    timestamp :: integer(),
+    node = node() :: atom()
 }).
 
 -record(message, {

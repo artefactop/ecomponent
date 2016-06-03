@@ -18,21 +18,11 @@
     <start-code><![CDATA[
         Id = <<"forward_response_module_test">>,
         Id_l = binary_to_list(Id),
-        timem:insert(Id, #matching{id=Id_l, ns='urn:itself', processor=self()})
+        timem:insert(Id, #matching{id=Id_l, ns='urn:itself', processor=PID})
     ]]></start-code>
 
-    <stop-code><![CDATA[
-        receive
-            #response{ns='urn:itself', params=Params} when is_record(Params,params) ->
-                ok;
-            Any -> throw(Any)
-        after 1000 ->
-            throw("TIMEOUT!!!")
-        end
-    ]]></stop-code>
-
     <steps>
-        <step name="send an error" type="send">
+        <step name="an error" type="send">
             <iq xmlns='jabber:client'
                 type='error'
                 to='alice.localhost'
@@ -40,6 +30,10 @@
                 <error xmlns='urn:itself'/>
             </iq>
         </step>
+        <step name="a response" type="receive"><![CDATA[
+            #response{ns='urn:itself', params=Params}
+                when is_record(Params,params)
+        ]]></step>
     </steps>
 
 </functional>

@@ -1,6 +1,6 @@
 %% encoding: UTF-8
 {application,ecomponent}.
 {packages,[]}.
-{modules,[ecomponent,ecomponent_con,ecomponent_con_worker,
+{modules,[ecomponent,ecomponent_acl,ecomponent_con,ecomponent_con_worker,
           ecomponent_func_test,iq_handler,message_handler,mod_monitor,
           presence_handler,processor,timem]}.
